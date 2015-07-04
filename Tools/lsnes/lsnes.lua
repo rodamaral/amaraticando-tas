@@ -725,45 +725,13 @@ end
 
 ---[[test
 function subframe_to_frame(subf)
-    local total_frames = LSNES.movie.Framecount --movie.count_frames(nil)
-    local total_subframes =  LSNES.movie.Subframecount--movie.get_size(nil)
+    local total_frames = LSNES.movie.Framecount or movie.count_frames(nil)
+    local total_subframes =  LSNES.movie.Subframecount or movie.get_size(nil)
     
-    -- Trivial cases
-    if subf <= 0 then return -1
-    elseif subf == 1 then return 1
-    elseif movie.find_frame(total_frames) + 1 <= subf and subf <= total_subframes then return total_frames
-    elseif total_subframes < subf then return total_frames + (subf - total_subframes) --end
+    if total_subframes < subf then return total_frames + (subf - total_subframes) --end
     else return movie.subframe_to_frame(subf + 1) end
-    
-    local frame, min_guess, max_guess
-    min_guess = math.max(subf - (total_subframes - total_frames + 1), 1)
-    max_guess = math.min(subf, total_frames)
-    frame = (max_guess + min_guess)//2
-    
-    --DEBUG
-    local control = 1
-    while true do
-        local gotten_subframe = movie.find_frame(frame) + 1
-        local gotten_subframe_next = movie.find_frame(frame + 1) + 1
-        
-        if gotten_subframe <= subf and subf < gotten_subframe_next then
-            break
-        elseif gotten_subframe_next <= subf then  -- increase frame
-            min_guess = frame + 1
-            frame =  (max_guess + min_guess)//2
-        else  -- decrease frame
-            max_guess = frame - 1
-            frame = (max_guess + min_guess)//2
-        end
-        
-        -- DEBUG
-        control = control + 1
-        if control > math.max(10, subf + 1) then print(current_subframe, control, "tries") break end
-    end
-    
-    return frame
 end
---subframe_to_frame = function(subframe) movie.subframe_to_frame(subframe + 1) end
+--]]
 
 function LSNES.display_input()
     -- Font
@@ -799,16 +767,15 @@ function LSNES.display_input()
     draw.line(-LSNES.Border_left, 0, 0, 0, 0xff)
     draw.line(-LSNES.Border_left, LSNES.Buffer_height//4, 0, LSNES.Buffer_height//4, 0xff0000)
     draw.line(-LSNES.Border_left, LSNES.Buffer_height//2, 0, LSNES.Buffer_height//2, 0xff)
-    --if true then return end
+    
     subframe = current_subframe + 1
-    if frame ~= subframe_to_frame(subframe) then gui.text(0, 0, "DIFFERENT HUE HUE") end
     frame = subframe_to_frame(subframe)
     
     for id = subframe, math.min(subframe + after - 1, LSNES.movie.Subframecount) do
         input = movie.get_frame(id - 1):serialize()
         draw.text(-LSNES.Border_left, y_text, fmt("%d %d %s", frame, id, input))
         
-        if movie.find_frame(frame + 1) == id then -- next subframe is a new frame?
+        if true--[[movie.find_frame(frame + 1) == id]] then -- next subframe is a new frame?
             frame = frame + 1
         end
         y_text = y_text + height
@@ -836,7 +803,7 @@ local function main_paint_function(authentic_paint, from_paint)
     draw.text(0, 48, tostring(LSNES.rom.hint))
     draw.text(0, 64, tostringx(LSNES.controller.ports))
     draw.text(0, 80, tostring(LSNES.frame_boundary))
-    gui.text(400, 400, movie.currentframe(), "yellow") -- EDIT
+    gui.text(400, 400, movie.pollcounter(0, 0, 0), "red", "black") -- EDIT
     
     LSNES.display_input()
     
@@ -849,13 +816,11 @@ function on_paint(authentic_paint)
     main_paint_function(authentic_paint, true)
     
     --[=[
-    local info = {}
     gui.text(0, 0, "TESTING")
-    for i = 1, 10 do
-        
-        info.Lastframe_emulated = 500000--movie.currentframe()
-        info.Starting_subframe_last_frame = movie.find_frame(info.Lastframe_emulated) + 1
-        --info.Size_last_frame = info.Lastframe_emulated >= 0 and movie.frame_subframes(info.Lastframe_emulated) or 1
+    for i = 500000, 500000+10000 do
+        --movie.subframe_to_frame(500000)
+        --movie.find_frame(500000)
+        movie.get_size(i)
     end
     --]=]
 end
