@@ -339,8 +339,9 @@ function LSNES.get_movie_info()
     -- Last frame info
     info.Lastframe_emulated = movie.currentframe() - decrement
     if info.Lastframe_emulated < 0 then info.Lastframe_emulated = 0 end
-    info.Starting_subframe_last_frame = info.Lastframe_emulated <= info.Framecount and movie.find_frame(info.Lastframe_emulated) + 1
-        or movie.find_frame(info.Framecount) + (info.Lastframe_emulated - info.Framecount) + 1
+    info.Starting_subframe_last_frame = info.Lastframe_emulated <= info.Framecount and
+        movie.current_first_subframe() + 1 - decrement*movie.frame_subframes(info.Lastframe_emulated) or
+        info.Subframecount + (info.Lastframe_emulated - info.Framecount)
     info.Size_last_frame = info.Lastframe_emulated >= 0 and movie.frame_subframes(info.Lastframe_emulated) or 1
     info.Final_subframe_last_frame = info.Starting_subframe_last_frame + info.Size_last_frame - 1
     
@@ -726,10 +727,10 @@ end
 ---[[test
 function subframe_to_frame(subf)
     local total_frames = LSNES.movie.Framecount or movie.count_frames(nil)
-    local total_subframes =  LSNES.movie.Subframecount or movie.get_size(nil)
+    local total_subframes = LSNES.movie.Subframecount or movie.get_size(nil)
     
     if total_subframes < subf then return total_frames + (subf - total_subframes) --end
-    else return movie.subframe_to_frame(subf + 1) end
+    else return movie.subframe_to_frame(subf - 1) end
 end
 --]]
 
@@ -755,7 +756,7 @@ function LSNES.display_input()
             draw.text(-LSNES.Border_left, y_text, fmt("%d %d %s", frame, id, input), color)
         end
         
-        if frame + 1 > LSNES.movie.Framecount --[[or movie.find_frame(frame + 1) == id]] then -- next subframe is a new frame?
+        if frame + 1 > LSNES.movie.Framecount or movie.find_frame(frame + 1) == id then -- next subframe is a new frame?
             frame = frame + 1
             color = 0xffffff
         else color = 0xff -- TEST
@@ -775,7 +776,7 @@ function LSNES.display_input()
         input = movie.get_frame(id - 1):serialize()
         draw.text(-LSNES.Border_left, y_text, fmt("%d %d %s", frame, id, input))
         
-        if true--[[movie.find_frame(frame + 1) == id]] then -- next subframe is a new frame?
+        if movie.find_frame(frame + 1) == id then -- next subframe is a new frame?
             frame = frame + 1
         end
         y_text = y_text + height
@@ -798,12 +799,12 @@ local function main_paint_function(authentic_paint, from_paint)
     LSNES.get_screen_info()
     create_gaps()
     
-    draw.Font_name = "snes9xtext"
+    --draw.Font_name = "snes9xtext"
     draw.text(300, 0, LSNES.subframe_update and "subframe update" or "NOT subframe up", 0xff8000)
-    draw.text(0, 48, tostring(LSNES.rom.hint))
-    draw.text(0, 64, tostringx(LSNES.controller.ports))
-    draw.text(0, 80, tostring(LSNES.frame_boundary))
-    gui.text(400, 400, movie.pollcounter(0, 0, 0), "red", "black") -- EDIT
+    --draw.text(0, 48, tostring(LSNES.rom.hint))
+    --draw.text(0, 64, tostringx(LSNES.controller.ports))
+    --draw.text(0, 80, tostring(LSNES.frame_boundary))
+    gui.text( -120, -16, movie.pollcounter(0, 0, 0), "yellow", "black") -- EDIT
     
     LSNES.display_input()
     
@@ -816,12 +817,15 @@ function on_paint(authentic_paint)
     main_paint_function(authentic_paint, true)
     
     --[=[
+    local j
     gui.text(0, 0, "TESTING")
     for i = 500000, 500000+10000 do
         --movie.subframe_to_frame(500000)
         --movie.find_frame(500000)
-        movie.get_size(i)
+        --movie.get_size(i)
+        j = movie.current_first_subframe()
     end
+    gui.text(0, 16, j)
     --]=]
 end
 
