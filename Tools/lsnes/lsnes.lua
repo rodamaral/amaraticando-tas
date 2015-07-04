@@ -339,17 +339,16 @@ function LSNES.get_movie_info()
     -- Last frame info
     info.Lastframe_emulated = movie.currentframe() - decrement
     if info.Lastframe_emulated < 0 then info.Lastframe_emulated = 0 end
-    info.Starting_subframe_last_frame = info.Lastframe_emulated <= info.Framecount and
-        movie.current_first_subframe() + 1 - decrement*movie.frame_subframes(info.Lastframe_emulated) or
-        info.Subframecount + (info.Lastframe_emulated - info.Framecount)
     info.Size_last_frame = info.Lastframe_emulated >= 0 and movie.frame_subframes(info.Lastframe_emulated) or 1
+    info.Starting_subframe_last_frame = info.Lastframe_emulated <= info.Framecount and
+        movie.current_first_subframe() + 1 - decrement*info.Size_last_frame or
+        info.Subframecount + (info.Lastframe_emulated - info.Framecount)
     info.Final_subframe_last_frame = info.Starting_subframe_last_frame + info.Size_last_frame - 1
     
     -- Next frame info (only relevant in readonly mode)
     info.Nextframe = info.Lastframe_emulated + 1
-    info.Starting_subframe_next_frame = info.Nextframe <= info.Framecount and movie.find_frame(info.Nextframe) + 1
-        or movie.find_frame(info.Framecount) + (info.Nextframe - info.Framecount) + 1
     info.Size_next_frame = movie.frame_subframes(info.Nextframe)
+    info.Starting_subframe_next_frame = info.Final_subframe_last_frame + 1
     info.Final_subframe_next_frame = info.Starting_subframe_next_frame + info.Size_next_frame - 1
     
     return info
