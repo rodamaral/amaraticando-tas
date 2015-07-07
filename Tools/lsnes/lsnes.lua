@@ -327,12 +327,11 @@ function LSNES.get_controller_info()
 end
 
 function LSNES.get_movie_info()
-    local info = {}
+    LSNES.movie = LSNES.movie or {}
+    local info = LSNES.movie
     
     local pollcounter = movie.pollcounter(0, 0, 0)
-    if LSNES.frame_boundary == nil then LSNES.frame_boundary = pollcounter ~= 0 and "polling" or "start" end
-    
-    local decrement = LSNES.frame_boundary == "start" and 1 or 0
+    LSNES.frame_boundary = LSNES.frame_boundary or (pollcounter ~= 0 and "polling" or "start")
     
     info.Readonly = movie.readonly()
     info.Framecount = movie.framecount()
@@ -341,32 +340,42 @@ function LSNES.get_movie_info()
     info.Rerecords = movie.rerecords()
     
     -- Last frame info
-    info.Lastframe_emulated = movie.currentframe() - decrement
+    info.Lastframe_emulated = movie.currentframe() - (LSNES.frame_boundary == "start" and 1 or 0)
     if info.Lastframe_emulated < 0 then info.Lastframe_emulated = 0 end
     info.Size_last_frame = LSNES.size_frame(info.Lastframe_emulated)
-    info.Starting_subframe_last_frame = info.Lastframe_emulated <= info.Framecount and
-        movie.current_first_subframe() + 1 - decrement*info.Size_last_frame or
-        info.Subframecount + (info.Lastframe_emulated - info.Framecount)
-    info.Final_subframe_last_frame = info.Starting_subframe_last_frame + info.Size_last_frame - 1
+    if info.Lastframe_emulated <= 0 then
+        info.Starting_subframe_last_frame = 0
+    elseif info.Lastframe_emulated <= info.Framecount then
+        info.Starting_subframe_last_frame = movie.current_first_subframe() + 1
+        if LSNES.frame_boundary == "start" then
+            info.Starting_subframe_last_frame = info.Starting_subframe_last_frame - info.Size_last_frame
+        end
+    else
+        info.Starting_subframe_last_frame = info.Subframecount + (info.Lastframe_emulated - info.Framecount)
+    end
+    info.Final_subframe_last_frame = info.Starting_subframe_last_frame + info.Size_last_frame - 1  -- unused
     gui.text(512-96, -16, fmt("Last: %d, %d+%d=%d", info.Lastframe_emulated, info.Starting_subframe_last_frame, info.Size_last_frame, info.Final_subframe_last_frame), "black", "yellow")
     
-    -- Current shit EDIT
-    LSNES.Current_subframe = (LSNES.frame_boundary == "start" or LSNES.frame_boundary == "end") and 1 or pollcounter + 1
-    LSNES.Current_frame = movie.currentframe() + ((LSNES.frame_boundary == "end") and 1 or 0)
-    ;;;;if LSNES.Current_frame == 0 then LSNES.Current_frame = 1 end
-    LSNES.Current_starting_subframe = info.Lastframe_emulated <= info.Framecount and
-        movie.current_first_subframe() + 1 + (LSNES.frame_boundary == "end" and info.Size_last_frame or 0) or
-        info.Subframecount + (LSNES.Current_frame - info.Framecount)
-    gui.text(512-48, 0, fmt("Current: %d,%d", LSNES.Current_frame, LSNES.Current_starting_subframe), "black", "yellow")
+    -- Current frame info
+    info.internal_subframe = (LSNES.frame_boundary == "start" or LSNES.frame_boundary == "end") and 1 or pollcounter + 1
+    info.current_frame = movie.currentframe() + ((LSNES.frame_boundary == "end") and 1 or 0)
+    if info.current_frame == 0 then info.current_frame = 1 end
+    if info.Lastframe_emulated <= info.Framecount then
+        info.current_starting_subframe = movie.current_first_subframe() + 1
+        if LSNES.frame_boundary == "end" then
+            info.current_starting_subframe = info.current_starting_subframe + info.Size_last_frame
+        end
+    else
+        info.current_starting_subframe = info.Subframecount + (info.current_frame - info.Framecount)
+    end
+    gui.text(512-48, 0, fmt("Current: %d,%d", info.current_frame, info.current_starting_subframe), "black", "yellow")
     
     -- Next frame info (only relevant in readonly mode)
     info.Nextframe = info.Lastframe_emulated + 1  -- unused
     info.Starting_subframe_next_frame = info.Final_subframe_last_frame + 1  -- unused
     
     -- TEST INPUT
-    LSNES.last_input_computed = LSNES.get_input(info.Subframecount)
-    
-    return info
+    info.last_input_computed = LSNES.get_input(info.Subframecount)
 end
 
 function LSNES.get_screen_info()
@@ -724,11 +733,10 @@ end)
 function on_frame_emulated()
     LSNES.Is_lagged = memory.get_lag_flag()
     LSNES.frame_boundary = "end"
-    LSNES.Current_subframe = 0 -- TEST
 end
 
 function on_frame()
-    LSNES.frame_boundary = "start" --true -- TEST
+    LSNES.frame_boundary = "start"
     if not movie.rom_loaded() then  -- only useful with null ROM
         gui.repaint()
     end
@@ -739,9 +747,6 @@ function on_snoop(port, controller, button, value)
     if port == 0 then LSNES.frame_boundary = "polling" end
 end
 
-function on_input(subframe)
-    --LSNES.frame_boundary = true
-end
 
 ---[[test
 function LSNES.size_frame(frame)
@@ -749,7 +754,7 @@ function LSNES.size_frame(frame)
 end
 
 function LSNES.get_input(subframe)
-    local total = --[[LSNES.movie.Subframecount or]] movie.get_size()
+    local total = LSNES.movie.Subframecount or movie.get_size()
     
     return (subframe <= total and subframe > 0) and movie.get_frame(subframe - 1) or false
 end
@@ -774,17 +779,18 @@ function LSNES.display_input()
     local y_text = LSNES.Buffer_middle_y - height
     
     local current_subindex, current_subframe, current_frame, frame, input, subindex
-    current_subframe = LSNES.Current_starting_subframe + LSNES.Current_subframe - 1
-    current_frame = LSNES.Current_frame
+    current_subframe = LSNES.movie.current_starting_subframe + LSNES.movie.internal_subframe - 1
+    current_frame = LSNES.movie.current_frame
     --
     subframe = current_subframe - 1
-    frame = LSNES.Current_subframe == 1 and current_frame - 1 or current_frame
+    frame = LSNES.movie.internal_subframe == 1 and current_frame - 1 or current_frame
     
     for subframe = subframe, subframe - before + 1, -1 do
         if subframe <= 0 then break end
         
         local raw_input = LSNES.get_input(subframe)
-        local input = raw_input and raw_input:serialize() or (frame == LSNES.Current_frame and LSNES.last_input_computed:serialize()) or "NULLINPUT"
+        local input = raw_input and raw_input:serialize() or
+        (frame == LSNES.movie.current_frame and LSNES.movie.last_input_computed:serialize()) or "NULLINPUT"
         draw.text(-LSNES.Border_left, y_text, fmt("%d(%d) %s", frame, subframe, input))
         
         if raw_input and raw_input:get_button(0, 0, 0) then
@@ -830,7 +836,7 @@ local function main_paint_function(authentic_paint, from_paint)
     
     if not LSNES.rom then LSNES.rom = LSNES.get_rom_info() ; print"> Read rom info" end
     if not LSNES.controller then LSNES.controller = LSNES.get_controller_info() ; print"> Read controller info" end
-    LSNES.movie = LSNES.get_movie_info()
+    LSNES.get_movie_info()
     LSNES.get_screen_info()
     create_gaps()
     
@@ -840,7 +846,7 @@ local function main_paint_function(authentic_paint, from_paint)
     --draw.text(0, 48, tostring(LSNES.rom.hint))
     --draw.text(0, 64, tostringx(LSNES.controller.ports))
     draw.text(-96, -16, movie.currentframe().." "..tostring(LSNES.frame_boundary))
-    gui.text( -140, -16, LSNES.Current_subframe--[[movie.pollcounter(0, 0, 0)]], "yellow", "black") -- EDIT
+    gui.text( -140, -16, LSNES.movie.internal_subframe--[[movie.pollcounter(0, 0, 0)]], "yellow", "black") -- EDIT
     
     LSNES.display_input()
     
