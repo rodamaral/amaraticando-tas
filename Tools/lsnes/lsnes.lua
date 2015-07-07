@@ -11,7 +11,7 @@ local OPTIONS = {
     use_custom_fonts = true,
     
     -- Lateral gaps (initial values)
-    left_gap = 20*8 + 2,
+    left_gap = 40*8 + 2,
     right_gap = 100,  -- 17 maximum chars of the Level info
     top_gap = 20,
     bottom_gap = 8,
@@ -343,7 +343,7 @@ function LSNES.get_movie_info()
     -- Last frame info
     info.Lastframe_emulated = movie.currentframe() - decrement
     if info.Lastframe_emulated < 0 then info.Lastframe_emulated = 0 end
-    info.Size_last_frame = info.Lastframe_emulated > 0 and movie.frame_subframes(info.Lastframe_emulated) or 1
+    info.Size_last_frame = LSNES.size_frame(info.Lastframe_emulated)
     info.Starting_subframe_last_frame = info.Lastframe_emulated <= info.Framecount and
         movie.current_first_subframe() + 1 - decrement*info.Size_last_frame or
         info.Subframecount + (info.Lastframe_emulated - info.Framecount)
@@ -354,14 +354,17 @@ function LSNES.get_movie_info()
     LSNES.Current_subframe = (LSNES.frame_boundary == "start" or LSNES.frame_boundary == "end") and 1 or pollcounter + 1
     LSNES.Current_frame = movie.currentframe() + ((LSNES.frame_boundary == "end") and 1 or 0)
     ;;;;if LSNES.Current_frame == 0 then LSNES.Current_frame = 1 end
-    LSNES.Current_starting_subframe = movie.current_first_subframe() + 1 + (LSNES.frame_boundary == "end" and info.Size_last_frame or 0)
+    LSNES.Current_starting_subframe = info.Lastframe_emulated <= info.Framecount and
+        movie.current_first_subframe() + 1 + (LSNES.frame_boundary == "end" and info.Size_last_frame or 0) or
+        info.Subframecount + (LSNES.Current_frame - info.Framecount)
     gui.text(512-48, 0, fmt("Current: %d,%d", LSNES.Current_frame, LSNES.Current_starting_subframe), "black", "yellow")
     
     -- Next frame info (only relevant in readonly mode)
-    info.Nextframe = info.Lastframe_emulated + 1
-    info.Size_next_frame = movie.frame_subframes(info.Nextframe)
-    info.Starting_subframe_next_frame = info.Final_subframe_last_frame + 1
-    info.Final_subframe_next_frame = info.Starting_subframe_next_frame + info.Size_next_frame - 1
+    info.Nextframe = info.Lastframe_emulated + 1  -- unused
+    info.Starting_subframe_next_frame = info.Final_subframe_last_frame + 1  -- unused
+    
+    -- TEST INPUT
+    LSNES.last_input_computed = LSNES.get_input(info.Subframecount)
     
     return info
 end
@@ -741,6 +744,16 @@ function on_input(subframe)
 end
 
 ---[[test
+function LSNES.size_frame(frame)
+    return frame > 0 and movie.frame_subframes(frame) or -1
+end
+
+function LSNES.get_input(subframe)
+    local total = --[[LSNES.movie.Subframecount or]] movie.get_size()
+    
+    return (subframe <= total and subframe > 0) and movie.get_frame(subframe - 1) or false
+end
+
 function subframe_to_frame(subf)
     local total_frames = LSNES.movie.Framecount or movie.count_frames(nil)
     local total_subframes = LSNES.movie.Subframecount or movie.get_size(nil)
@@ -761,29 +774,24 @@ function LSNES.display_input()
     local y_text = LSNES.Buffer_middle_y - height
     
     local current_subindex, current_subframe, current_frame, frame, input, subindex
-    current_subindex = LSNES.Current_subframe
-    current_subframe = LSNES.Current_starting_subframe + current_subindex - 1
+    current_subframe = LSNES.Current_starting_subframe + LSNES.Current_subframe - 1
     current_frame = LSNES.Current_frame
     --
-    subindex = current_subindex == 1 and LSNES.movie.Size_last_frame or current_subindex - 1
     subframe = current_subframe - 1
-    frame = current_subindex == 1 and current_frame - 1 or current_frame
+    frame = LSNES.Current_subframe == 1 and current_frame - 1 or current_frame
     
     for subframe = subframe, subframe - before + 1, -1 do
         if subframe <= 0 then break end
         
-        local input = (subframe > LSNES.movie.Subframecount) and "NULLINPUT" or movie.get_frame(subframe - 1):serialize()
-        draw.text(-LSNES.Border_left, y_text, fmt("%d(%d) %d %s", frame, subindex, subframe, input))
+        local raw_input = LSNES.get_input(subframe)
+        local input = raw_input and raw_input:serialize() or (frame == LSNES.Current_frame and LSNES.last_input_computed:serialize()) or "NULLINPUT"
+        draw.text(-LSNES.Border_left, y_text, fmt("%d(%d) %s", frame, subframe, input))
         
-        if subindex <= 1 then -- previous subframe is a different frame?
+        if raw_input and raw_input:get_button(0, 0, 0) then
             frame = frame - 1
-            subindex = frame > 0 and movie.frame_subframes(frame) or 1
-        else
-            subindex = subindex - 1
         end
         
         y_text = y_text - height
-        
     end
     
     draw.line(-LSNES.Border_left, 0, 0, 0, 0xff)
@@ -791,25 +799,22 @@ function LSNES.display_input()
     draw.line(-LSNES.Border_left, LSNES.Buffer_height//2, 0, LSNES.Buffer_height//2, 0xff)
     
     y_text = LSNES.Buffer_middle_y
-    subindex = current_subindex
     frame = current_frame
-    local size = subindex == 1 and movie.frame_subframes(frame) or LSNES.movie.Size_last_frame
     
     for subframe = current_subframe, current_subframe + after - 1 do
-        if subframe > LSNES.movie.Subframecount then break end
+        --if subframe > LSNES.movie.Subframecount then break end  -- EDIT
         
-        local input = movie.get_frame(subframe - 1):serialize()
-        draw.text(-LSNES.Border_left, y_text, fmt("%d(%d) %d %s", frame, subindex, subframe, input))
+        local raw_input = LSNES.get_input(subframe)
+        local input = raw_input and raw_input:serialize() or "Unrecorded"
         
-        if subindex >= size then
-            subindex = 1
+        if (raw_input and raw_input:get_button(0, 0, 0)) and subframe ~= current_subframe then
             frame = frame + 1
-            size = movie.frame_subframes(frame)
-        else
-            subindex = subindex + 1
         end
         
+        draw.text(-LSNES.Border_left, y_text, fmt("%d(%d) %s", frame, subframe, input))
         y_text = y_text + height
+        
+        if not raw_input then break end
     end
     
 end
@@ -850,11 +855,13 @@ function on_paint(authentic_paint)
     --[=[
     local j
     gui.text(0, 0, "TESTING")
-    for i = 500000, 500000+10000 do
-        --movie.subframe_to_frame(500000)
-        --movie.find_frame(500000)
-        --movie.get_size(i)
-        j = movie.current_first_subframe()
+    for i = 500000, 500000+100 do
+        --j = movie.subframe_to_frame(i)  -- very slow
+        --j = movie.find_frame(i)  -- very slow
+        --j = movie.get_size(i)  -- fast
+        --j = movie.current_first_subframe()  -- very fast
+        j = movie.frame_subframes(i)  -- slow
+        --j= movie.get_frame(i):serialize()  -- fast
     end
     gui.text(0, 16, j)
     --]=]
