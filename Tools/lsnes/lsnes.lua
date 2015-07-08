@@ -713,7 +713,7 @@ end
 -- MAIN --
 
 
-LSNES.subframe_update = true
+LSNES.subframe_update = false
 gui.subframe_update(LSNES.subframe_update)  -- TODO: this should be true when paused or in heavy slowdown -- EDIT
 
 
@@ -777,6 +777,7 @@ function LSNES.display_input()
     local before = LSNES.Buffer_height//(2*height)
     local after = before
     local y_text = LSNES.Buffer_middle_y - height
+    local color, subframe_around = nil, false
     
     local current_subindex, current_subframe, current_frame, frame, input, subindex
     current_subframe = LSNES.movie.current_starting_subframe + LSNES.movie.internal_subframe - 1
@@ -788,15 +789,28 @@ function LSNES.display_input()
     for subframe = subframe, subframe - before + 1, -1 do
         if subframe <= 0 then break end
         
+        local is_nullinput, is_startframe, is_delayedinput
         local raw_input = LSNES.get_input(subframe)
-        local input = raw_input and raw_input:serialize() or
-        (frame == LSNES.movie.current_frame and LSNES.movie.last_input_computed:serialize()) or "NULLINPUT"
-        draw.text(-LSNES.Border_left, y_text, fmt("%d(%d) %s", frame, subframe, input))
-        
-        if raw_input and raw_input:get_button(0, 0, 0) then
-            frame = frame - 1
+        if raw_input then
+            input = raw_input:serialize()
+            is_startframe = raw_input:get_button(0, 0, 0)
+            if not is_startframe then subframe_around = true end
+            color = is_startframe and COLOUR.text or 0xff
+        elseif frame == LSNES.movie.current_frame then
+            input = LSNES.movie.last_input_computed:serialize()
+            is_delayedinput = true
+            color = 0x00ffff
+        else
+            input = "NULLINPUT"
+            is_nullinput = true
+            color = 0xff8080
         end
         
+        draw.text(-LSNES.Border_left, y_text, fmt("%d %s", frame, input), color)
+        
+        if is_startframe or is_nullinput then
+            frame = frame - 1
+        end
         y_text = y_text - height
     end
     
@@ -808,21 +822,29 @@ function LSNES.display_input()
     frame = current_frame
     
     for subframe = current_subframe, current_subframe + after - 1 do
-        --if subframe > LSNES.movie.Subframecount then break end  -- EDIT
-        
         local raw_input = LSNES.get_input(subframe)
         local input = raw_input and raw_input:serialize() or "Unrecorded"
         
-        if (raw_input and raw_input:get_button(0, 0, 0)) and subframe ~= current_subframe then
-            frame = frame + 1
+        if raw_input and raw_input:get_button(0, 0, 0) then
+            if subframe ~= current_subframe then frame = frame + 1 end
+            color = COLOUR.text
+        else
+            if raw_input then
+                subframe_around = true
+                color = 0xff
+            else
+                color = 0x00ff00
+            end
         end
         
-        draw.text(-LSNES.Border_left, y_text, fmt("%d(%d) %s", frame, subframe, input))
+        draw.text(-LSNES.Border_left, y_text, fmt("%d %s", frame, input), color)
         y_text = y_text + height
         
         if not raw_input then break end
     end
     
+    LSNES.subframe_update = subframe_around
+    gui.subframe_update(LSNES.subframe_update)
 end
 --]]
 
@@ -840,7 +862,6 @@ local function main_paint_function(authentic_paint, from_paint)
     LSNES.get_screen_info()
     create_gaps()
     
-    --draw.Font_name = "snes9xtext"
     if not authentic_paint then gui.text(-8, -16, "*") end
     draw.text(300, 0, LSNES.subframe_update and "subframe update" or "NOT subframe up", 0xff8000)
     --draw.text(0, 48, tostring(LSNES.rom.hint))
