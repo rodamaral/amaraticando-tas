@@ -9,10 +9,11 @@ local OPTIONS = {
     
     -- Script settings
     use_custom_fonts = true,
+    display_all_controllers = false,
     
     -- Lateral gaps (initial values)
     left_gap = 40*8 + 2,
-    right_gap = 100,  -- 17 maximum chars of the Level info
+    right_gap = 32,
     top_gap = 20,
     bottom_gap = 8,
 }
@@ -292,26 +293,39 @@ function LSNES.get_rom_info()
 end
 
 function LSNES.get_controller_info()
-    local controller_info = {}
+    local info = {}
     
-    controller_info.ports = {}
-    controller_info.num_ports = 0
+    info.ports = {}
+    info.num_ports = 0
+    info.total_buttons = 0
+    info.total_controllers = 0
+    
     for port = 0, math.huge do
-        controller_info.ports[port] = input.port_type(port)
-        if not controller_info.ports[port] then break end
-        controller_info.num_ports = controller_info.num_ports + 1
+        info.ports[port] = input.port_type(port)
+        if not info.ports[port] then break end
+        info.num_ports = info.num_ports + 1
     end
     
     for lcid = 0, math.huge do
         local port, controller = input.lcid_to_pcid2(lcid)
-        local info = (port and controller) and input.controller_info(port, controller) or nil
+        local ci = (port and controller) and input.controller_info(port, controller) or nil
+        local symbols = {}
         
-        if info then
-            controller_info[lcid] = {port = port, controller = controller}
-            controller_info[lcid].type = info.type
-            controller_info[lcid].class = info.class
-            controller_info[lcid].classnum = info.classnum
-            controller_info[lcid].button_count = info.button_count
+        if ci then
+            info[lcid] = {port = port, controller = controller}
+            info[lcid].type = ci.type
+            info[lcid].class = ci.class
+            info[lcid].classnum = ci.classnum
+            info[lcid].button_count = ci.button_count
+            info[lcid].symbols = {}
+            for button, inner in ipairs(ci.buttons) do
+                info[lcid].symbols[button] = inner.symbol
+                --print(button, inner.symbol)
+            end
+            
+            -- Some
+            info.total_buttons = info.total_buttons + ci.button_count
+            info.total_controllers = info.total_controllers + 1
             
         elseif lcid > 0 then
             break
@@ -319,11 +333,11 @@ function LSNES.get_controller_info()
     end
     
     --[[
-    for a,b in pairs(controller_info) do
+    for a,b in pairs(info) do
         print(a,b)
     end
     --]]
-    return controller_info
+    return info
 end
 
 function LSNES.get_movie_info()
@@ -354,7 +368,6 @@ function LSNES.get_movie_info()
         info.Starting_subframe_last_frame = info.Subframecount + (info.Lastframe_emulated - info.Framecount)
     end
     info.Final_subframe_last_frame = info.Starting_subframe_last_frame + info.Size_last_frame - 1  -- unused
-    gui.text(512-96, -16, fmt("Last: %d, %d+%d=%d", info.Lastframe_emulated, info.Starting_subframe_last_frame, info.Size_last_frame, info.Final_subframe_last_frame), "black", "yellow")
     
     -- Current frame info
     info.internal_subframe = (LSNES.frame_boundary == "start" or LSNES.frame_boundary == "end") and 1 or pollcounter + 1
@@ -368,7 +381,6 @@ function LSNES.get_movie_info()
     else
         info.current_starting_subframe = info.Subframecount + (info.current_frame - info.Framecount)
     end
-    gui.text(512-48, 0, fmt("Current: %d,%d", info.current_frame, info.current_starting_subframe), "black", "yellow")
     
     -- Next frame info (only relevant in readonly mode)
     info.Nextframe = info.Lastframe_emulated + 1  -- unused
@@ -759,6 +771,19 @@ function LSNES.get_input(subframe)
     return (subframe <= total and subframe > 0) and movie.get_frame(subframe - 1) or false
 end
 
+function LSNES.treat_input(input_obj)
+    if OPTIONS.display_all_controllers then
+        return "wrong option"
+    else
+        local lcid1 = {}
+        for control = 1, LSNES.controller[1].button_count do
+            lcid1[control] = input_obj:get_button(1, 0, control-1) and LSNES.controller[1].symbols[control] or "_"
+        end
+        
+        return table.concat(lcid1)
+    end
+end
+
 function subframe_to_frame(subf)
     local total_frames = LSNES.movie.Framecount or movie.count_frames(nil)
     local total_subframes = LSNES.movie.Subframecount or movie.get_size(nil)
@@ -807,6 +832,7 @@ function LSNES.display_input()
         end
         
         draw.text(-LSNES.Border_left, y_text, fmt("%d %s", frame, input), color)
+        if raw_input then gui.text(0, y_text, LSNES.treat_input(raw_input)) end -- TEST
         
         if is_startframe or is_nullinput then
             frame = frame - 1
@@ -814,9 +840,9 @@ function LSNES.display_input()
         y_text = y_text - height
     end
     
-    draw.line(-LSNES.Border_left, 0, 0, 0, 0xff)
-    draw.line(-LSNES.Border_left, LSNES.Buffer_height//4, 0, LSNES.Buffer_height//4, 0xff0000)
-    draw.line(-LSNES.Border_left, LSNES.Buffer_height//2, 0, LSNES.Buffer_height//2, 0xff)
+    draw.line(-LSNES.Border_left, 0, -1, 0, 0xff)
+    draw.line(-LSNES.Border_left, LSNES.Buffer_height//4, -1, LSNES.Buffer_height//4, 0xff0000)
+    draw.line(-LSNES.Border_left, LSNES.Buffer_height//2, -1, LSNES.Buffer_height//2, 0xff)
     
     y_text = LSNES.Buffer_middle_y
     frame = current_frame
@@ -838,6 +864,7 @@ function LSNES.display_input()
         end
         
         draw.text(-LSNES.Border_left, y_text, fmt("%d %s", frame, input), color)
+        if raw_input then gui.text(0, y_text, LSNES.treat_input(raw_input)) end -- TEST
         y_text = y_text + height
         
         if not raw_input then break end
@@ -859,15 +886,14 @@ local function main_paint_function(authentic_paint, from_paint)
     if not LSNES.rom then LSNES.rom = LSNES.get_rom_info() ; print"> Read rom info" end
     if not LSNES.controller then LSNES.controller = LSNES.get_controller_info() ; print"> Read controller info" end
     LSNES.get_movie_info()
+    LSNES.left_gap = 8*(LSNES.controller.total_buttons + LSNES.controller.total_controllers + 14) -- TEST
     LSNES.get_screen_info()
     create_gaps()
     
     if not authentic_paint then gui.text(-8, -16, "*") end
-    draw.text(300, 0, LSNES.subframe_update and "subframe update" or "NOT subframe up", 0xff8000)
-    --draw.text(0, 48, tostring(LSNES.rom.hint))
-    --draw.text(0, 64, tostringx(LSNES.controller.ports))
-    draw.text(-96, -16, movie.currentframe().." "..tostring(LSNES.frame_boundary))
-    gui.text( -140, -16, LSNES.movie.internal_subframe--[[movie.pollcounter(0, 0, 0)]], "yellow", "black") -- EDIT
+    draw.text(- LSNES.Border_left, -20, tostringx(LSNES.controller.ports))
+    --draw.text(-96, -16, movie.currentframe().." "..tostring(LSNES.frame_boundary))
+    --gui.text( -140, -16, LSNES.movie.internal_subframe, "yellow", "black") -- EDIT
     
     LSNES.display_input()
     
