@@ -9,7 +9,7 @@ local OPTIONS = {
     
     -- Script settings
     use_custom_fonts = true,
-    display_all_controllers = false,
+    display_all_controllers = true,
     
     -- Lateral gaps (initial values)
     left_gap = 40*8 + 2,
@@ -638,7 +638,7 @@ end
 
 -- Creates lateral gaps
 local function create_gaps()
-    gui.left_gap(LSNES.left_gap)  -- for input display
+    gui.left_gap(LSNES.left_gap)  -- for input display -- TEST
     gui.right_gap(LSNES.right_gap)
     gui.top_gap(LSNES.top_gap)
     gui.bottom_gap(LSNES.bottom_gap)
@@ -772,16 +772,35 @@ function LSNES.get_input(subframe)
 end
 
 function LSNES.treat_input(input_obj)
-    if OPTIONS.display_all_controllers then
-        return "wrong option"
-    else
-        local lcid1 = {}
-        for control = 1, LSNES.controller[1].button_count do
-            lcid1[control] = input_obj:get_button(1, 0, control-1) and LSNES.controller[1].symbols[control] or "_"
+    local presses = {}
+    local index = 1
+    local number_controls = OPTIONS.display_all_controllers and LSNES.controller.total_controllers or 1
+    for lcid = 1, number_controls do
+        local port, cnum = input.lcid_to_pcid2(lcid)
+        for control = 1, LSNES.controller[lcid].button_count do
+            presses[index] = input_obj:get_button(port, cnum, control-1) and LSNES.controller[lcid].symbols[control] or "."
+            index = index + 1
         end
         
-        return table.concat(lcid1)
+        presses[index] = "|"
+        index = index + 1
     end
+    
+    return table.concat(presses)
+end
+
+function LSNES.input_to_string(inputframe)
+    local remove_num = 8
+    local input_line = inputframe:serialize()
+    local str = string.sub(input_line, remove_num) -- remove the "FR X Y|" from input
+    
+    str = string.gsub(str, "%p", "\032") -- ' '
+    str = string.gsub(str, "u", "\094")  -- '^'
+    str = string.gsub(str, "d", "v")     -- 'v'
+    str = string.gsub(str, "l", "\060")  -- '<'
+    str = string.gsub(str, "r", "\062")  -- '>'
+    
+    return str
 end
 
 function subframe_to_frame(subf)
@@ -790,6 +809,87 @@ function subframe_to_frame(subf)
     
     if total_subframes < subf then return total_frames + (subf - total_subframes) --end
     else return movie.subframe_to_frame(subf - 1) end
+end
+--]]
+
+--[[ serialized version of display_input
+function LSNES.display_input_serialized()
+    -- Font
+    draw.Font_name = false
+    draw.opacity(1.0, 1.0)
+    local width  = draw.font_width()
+    local height = draw.font_height()
+    local before = LSNES.Buffer_height//(2*height)
+    local after = before
+    local y_text = LSNES.Buffer_middle_y - height
+    local color, subframe_around = nil, false
+    
+    local current_subindex, current_subframe, current_frame, frame, input, subindex
+    current_subframe = LSNES.movie.current_starting_subframe + LSNES.movie.internal_subframe - 1
+    current_frame = LSNES.movie.current_frame
+    --
+    subframe = current_subframe - 1
+    frame = LSNES.movie.internal_subframe == 1 and current_frame - 1 or current_frame
+    
+    for subframe = subframe, subframe - before + 1, -1 do
+        if subframe <= 0 then break end
+        
+        local is_nullinput, is_startframe, is_delayedinput
+        local raw_input = LSNES.get_input(subframe)
+        if raw_input then
+            input = LSNES.input_to_string(raw_input)
+            is_startframe = raw_input:get_button(0, 0, 0)
+            if not is_startframe then subframe_around = true end
+            color = is_startframe and COLOUR.text or 0xff
+        elseif frame == LSNES.movie.current_frame then
+            input = LSNES.input_to_string(LSNES.movie.last_input_computed)
+            is_delayedinput = true
+            color = 0x00ffff
+        else
+            input = "NULLINPUT"
+            is_nullinput = true
+            color = 0xff8080
+        end
+        
+        draw.text(-LSNES.Border_left, y_text, fmt("%d %s", frame, input), color)
+        
+        if is_startframe or is_nullinput then
+            frame = frame - 1
+        end
+        y_text = y_text - height
+    end
+    
+    draw.line(-LSNES.Border_left, 0, -1, 0, 0xff)
+    draw.line(-LSNES.Border_left, LSNES.Buffer_height//4, -1, LSNES.Buffer_height//4, 0xff0000)
+    draw.line(-LSNES.Border_left, LSNES.Buffer_height//2, -1, LSNES.Buffer_height//2, 0xff)
+    
+    y_text = LSNES.Buffer_middle_y
+    frame = current_frame
+    
+    for subframe = current_subframe, current_subframe + after - 1 do
+        local raw_input = LSNES.get_input(subframe)
+        local input = raw_input and LSNES.input_to_string(raw_input) or "Unrecorded"
+        
+        if raw_input and raw_input:get_button(0, 0, 0) then
+            if subframe ~= current_subframe then frame = frame + 1 end
+            color = COLOUR.text
+        else
+            if raw_input then
+                subframe_around = true
+                color = 0xff
+            else
+                color = 0x00ff00
+            end
+        end
+        
+        draw.text(-LSNES.Border_left, y_text, fmt("%d %s", frame, input), color)
+        y_text = y_text + height
+        
+        if not raw_input then break end
+    end
+    
+    LSNES.subframe_update = subframe_around
+    gui.subframe_update(LSNES.subframe_update)
 end
 --]]
 
@@ -817,12 +917,12 @@ function LSNES.display_input()
         local is_nullinput, is_startframe, is_delayedinput
         local raw_input = LSNES.get_input(subframe)
         if raw_input then
-            input = raw_input:serialize()
+            input = LSNES.treat_input(raw_input)
             is_startframe = raw_input:get_button(0, 0, 0)
             if not is_startframe then subframe_around = true end
             color = is_startframe and COLOUR.text or 0xff
         elseif frame == LSNES.movie.current_frame then
-            input = LSNES.movie.last_input_computed:serialize()
+            input = LSNES.treat_input(LSNES.movie.last_input_computed)
             is_delayedinput = true
             color = 0x00ffff
         else
@@ -831,8 +931,7 @@ function LSNES.display_input()
             color = 0xff8080
         end
         
-        draw.text(-LSNES.Border_left, y_text, fmt("%d %s", frame, input), color)
-        if raw_input then gui.text(0, y_text, LSNES.treat_input(raw_input)) end -- TEST
+        draw.text(-LSNES.Border_left, y_text, input, color)
         
         if is_startframe or is_nullinput then
             frame = frame - 1
@@ -849,7 +948,7 @@ function LSNES.display_input()
     
     for subframe = current_subframe, current_subframe + after - 1 do
         local raw_input = LSNES.get_input(subframe)
-        local input = raw_input and raw_input:serialize() or "Unrecorded"
+        local input = raw_input and LSNES.treat_input(raw_input) or "Unrecorded"
         
         if raw_input and raw_input:get_button(0, 0, 0) then
             if subframe ~= current_subframe then frame = frame + 1 end
@@ -863,8 +962,7 @@ function LSNES.display_input()
             end
         end
         
-        draw.text(-LSNES.Border_left, y_text, fmt("%d %s", frame, input), color)
-        if raw_input then gui.text(0, y_text, LSNES.treat_input(raw_input)) end -- TEST
+        draw.text(-LSNES.Border_left, y_text, input, color)
         y_text = y_text + height
         
         if not raw_input then break end
@@ -886,7 +984,7 @@ local function main_paint_function(authentic_paint, from_paint)
     if not LSNES.rom then LSNES.rom = LSNES.get_rom_info() ; print"> Read rom info" end
     if not LSNES.controller then LSNES.controller = LSNES.get_controller_info() ; print"> Read controller info" end
     LSNES.get_movie_info()
-    LSNES.left_gap = 8*(LSNES.controller.total_buttons + LSNES.controller.total_controllers + 14) -- TEST
+    LSNES.left_gap = math.min(8*(LSNES.controller.total_buttons + LSNES.controller.total_controllers + 14), 500) -- TEST
     LSNES.get_screen_info()
     create_gaps()
     
@@ -906,17 +1004,11 @@ function on_paint(authentic_paint)
     main_paint_function(authentic_paint, true)
     
     --[=[
-    local j
-    gui.text(0, 0, "TESTING")
-    for i = 500000, 500000+100 do
-        --j = movie.subframe_to_frame(i)  -- very slow
-        --j = movie.find_frame(i)  -- very slow
-        --j = movie.get_size(i)  -- fast
-        --j = movie.current_first_subframe()  -- very fast
-        j = movie.frame_subframes(i)  -- slow
-        --j= movie.get_frame(i):serialize()  -- fast
+    --local _input = LSNES.get_input(LSNES.movie.Lastframe_emulated)
+    for i=1, 50 do
+        --LSNES.display_input_serialized()
+        LSNES.display_input()
     end
-    gui.text(0, 16, j)
     --]=]
 end
 
