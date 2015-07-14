@@ -10,8 +10,6 @@
 -- NTSC-U only for now :(
 -- Better display using the PSX > Options > Mednafen Mode (4:3 AR)
 
-local TIMETRIAL_ADRESS = 0x001AC795
-
 local ram={
 	on_level = 0x0008D447,
 	environment = 0x0008D0FC,
@@ -20,13 +18,8 @@ local ram={
     lap = 0x001FFE38
 }
 
-local ram_track={  --  abs Penta on Coco Park = 0x001AC795
-	[3]  = 0,		[7]  = 6760,	[1]  = 78772,	[6]  = 127784,	[16] = 145852,	[9]  = 162636,
-	[5]  = 179844,	[8]  = 188720,	[0]  = 197572,	[13] = 200000,	[10] = 211044,	[12] = 211740,
-	[4]  = 211932,	[15] = 212564,	[11] = 213252,	[2]  = 214872,	[14] = 215340,	[17] = 224656
-}
-
-local ram_racer_timetrial={		--	(char_number -> relative adress)		abs speed Penta on Dingo Canyon=0x001DAE1FD
+-- OFFSET = -17612 + DCache/0x88
+local ram_racer_timetrial={
 	[13] = 0,		[6]  = 1732,	[9]  = 3332,	[3]  = 4380,	[10] = 4488,
 	[12] = 6456,	[2]  = 6476,	[4]  = 6700,	[8]  = 7164,	[14] = 7872,
 	[1]  = 8668,	[11] = 9444,	[7]  = 9816,	[0]  = 10260,	[5]  = 10628
@@ -106,18 +99,21 @@ local function info()
 		--new_gui_text(0, 14, string.format("%s - Environment %d", track_name[track_number], environment_number))
 	end
 	
-	local adress = TIMETRIAL_ADRESS + ram_track[track_number] + ram_racer_timetrial[racer_number]
-	local absSpeed = mainmemory.read_u8(adress)
-	local horiSpeed = mainmemory.read_s8(adress+2)
-	local vertSpeed = mainmemory.read_s8(adress+4)
-	local turboReserves = mainmemory.read_u16_le(adress+85)
-	local slideTimer = mainmemory.read_u16_le(adress+79)
-	local absPos = mainmemory.read_u8(adress+252)
-	local absSubPos = mainmemory.read_u8(adress+251)
-	local maxAbsPos = mainmemory.read_u8(adress+256)
-	local maxAbsSubPos = mainmemory.read_u8(adress+255)
-	local jumpTimer = mainmemory.read_u16_le(adress+111)
-	local landing = mainmemory.read_u8(adress+99)
+    local offset = mainmemory.read_u32_le(0x8d674)
+    local address = offset - 0x7ffffc73  -- this is probably 0x7FFFFFFF, or 0x80000000, or the offset is 24 bits long
+    local absSpeed = mainmemory.read_u8(address)
+	local horiSpeed = mainmemory.read_s8(address+2)
+	local vertSpeed = mainmemory.read_s8(address+4)
+	local turboReserves = mainmemory.read_u16_le(address+85)
+	local slideTimer = mainmemory.read_u16_le(address+79)
+	local absPos = mainmemory.read_u8(address+252)
+	local absSubPos = mainmemory.read_u8(address+251)
+	local maxAbsPos = mainmemory.read_u8(address+256)
+	local maxAbsSubPos = mainmemory.read_u8(address+255)
+	local jumpTimer = mainmemory.read_u16_le(address+111)
+	local landing = mainmemory.read_u8(address+99)
+    local wumpa_count = mainmemory.read_u8(address-861) -- test
+    local number_position = mainmemory.read_u8(address + 245) + 1 -- test
     
 	scaled_text(83, 60, string.format("Abs. Sp. = %d", absSpeed))
 	scaled_text(88.5, 85, string.format("%3d", horiSpeed), "red")
@@ -127,10 +123,13 @@ local function info()
 	scaled_text(40, 00, string.format("%3d.%02x/%3d.%02x", absPos, absSubPos, maxAbsPos, maxAbsSubPos))
 	scaled_text(86.75, 78, string.format("%5d", jumpTimer))
 	scaled_text(89, 80.5, string.format("%3d", landing))
+    scaled_text(68, 10, wumpa_count, "orange") -- test
+    scaled_text(12, 90, number_position, "blue") -- test
 end
 
 local function display()
 	local on_level = mainmemory.read_s8(ram["on_level"])
+    gui.text(0, 0, on_level, "yellow")
 	if on_level==2 then
 		info()
 	end
