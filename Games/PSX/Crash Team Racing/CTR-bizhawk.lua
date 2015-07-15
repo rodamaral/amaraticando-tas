@@ -100,37 +100,87 @@ local function info()
 	end
 	
     local offset = mainmemory.read_u32_le(0x8d674)
-    local address = offset - 0x7ffffc73  -- this is probably 0x7FFFFFFF, or 0x80000000, or the offset is 24 bits long
-    local absSpeed = mainmemory.read_u8(address)
-	local horiSpeed = mainmemory.read_s8(address+2)
-	local vertSpeed = mainmemory.read_s8(address+4)
-	local turboReserves = mainmemory.read_u16_le(address+85)
-	local slideTimer = mainmemory.read_u16_le(address+79)
-	local absPos = mainmemory.read_u8(address+252)
-	local absSubPos = mainmemory.read_u8(address+251)
-	local maxAbsPos = mainmemory.read_u8(address+256)
-	local maxAbsSubPos = mainmemory.read_u8(address+255)
-	local jumpTimer = mainmemory.read_u16_le(address+111)
-	local landing = mainmemory.read_u8(address+99)
-    local wumpa_count = mainmemory.read_u8(address-861) -- test
-    local number_position = mainmemory.read_u8(address + 245) + 1 -- test
+    local address = offset - 0x80000000
     
-	scaled_text(83, 60, string.format("Abs. Sp. = %d", absSpeed))
-	scaled_text(88.5, 85, string.format("%3d", horiSpeed), "red")
-	scaled_text(83, 62.5, string.format("Vrt. Sp. = %d", vertSpeed))
+    local absolute_subspeed = mainmemory.read_u8(address + 0x38c)
+    local absSpeed = mainmemory.read_u8(address + 0x38d)
+    local horizontal_subspeed = mainmemory.read_u8(address + 0x38e)
+	local horiSpeed = mainmemory.read_s8(address + 0x38f)
+    local vertical_subspeed = mainmemory.read_u8(address + 0x390)
+	local vertSpeed = mainmemory.read_s8(address + 0x391)
+	local turboReserves = mainmemory.read_u16_le(address + 0x3e2)
+	local slideTimer = mainmemory.read_u16_le(address + 0x3dc)
+	local absPos = mainmemory.read_u8(address + 0x489)
+	local absSubPos = mainmemory.read_u8(address + 0x488)
+	local maxAbsPos = mainmemory.read_u8(address + 0x48d)
+	local maxAbsSubPos = mainmemory.read_u8(address + 0x48c)
+	local jumpTimer = mainmemory.read_u16_le(address + 0x3fc)
+	local landing = mainmemory.read_u8(address + 0x3f0)
+    local wumpa_count = mainmemory.read_u8(address + 0x30) -- test
+    local number_position = mainmemory.read_u8(address + 0x482) + 1 -- test
+    
+    -- Positions  (from 0xed4 to 0xedf)
+    local x = mainmemory.read_s32_le(address + 0x2d4)
+    local x_pos = math.floor(x/0x100)
+    local x_subpixel = x%0x100
+    local z = mainmemory.read_s32_le(address + 0x2d8)
+    local z_pos = math.floor(z/0x100)
+    local z_subpixel = z%0x100
+    local y = mainmemory.read_s32_le(address + 0x2dc)
+    local y_pos = math.floor(y/0x100)
+    local y_subpixel = y%0x100
+    -- previous positions from 0xee0 to 0xeeb
+    ---[[
+    local x2 = mainmemory.read_s32_le(address + 0x2e0)
+    local x_pos2 = math.floor(x/0x100)
+    local x_subpixel2 = x%0x100
+    local z2 = mainmemory.read_s32_le(address + 0x2e4)
+    local z_pos2 = math.floor(z/0x100)
+    local z_subpixel2 = z%0x100
+    local y2 = mainmemory.read_s32_le(address + 0x2e8)
+    local y_pos2 = math.floor(y/0x100)
+    local y_subpixel2 = y%0x100
+    local deslocamento = math.sqrt((x2-x)^2 + (y2-y)^2 + (z2-z)^2)
+    local deslocamento_horizontal = math.sqrt((x2-x)^2 + (y2-y)^2)
+    gui.text(64, 0, string.format("%f, %f", deslocamento/256, deslocamento_horizontal/256), "darkblue", "yellow")
+    --]]
+    
+    -- Direction
+    local direction = 0xc00 - mainmemory.read_s16_le(address + 0x39a)
+    local x_angle = math.sin(direction*math.pi/2048)
+    local y_angle = math.cos(direction*math.pi/2048)
+    local combined_speed = 256*absSpeed + absolute_subspeed -- test
+    local horizontal_speed = math.sqrt(combined_speed^2 - (256*vertSpeed+ vertical_subspeed)^2)/256 -- test
+    local effective_inclination1 = mainmemory.read_s8(address + 0x31b)
+    local effective_inclination2 = mainmemory.read_s8(address + 0x33b)
+    local speed_inclination = mainmemory.read_s8(address + 0x94)
+    
+    gui.text(0, 500, string.format("OFFSET %X", address), "black", "magenta")
+	scaled_text(75, 60, string.format("Abs. Sp. = %d.%.2x", absSpeed, absolute_subspeed))
+	scaled_text(88.5, 85, string.format("%3d.%.2x", horiSpeed, horizontal_subspeed), "red")
+	scaled_text(75, 62.5, string.format("Vrt. Sp. = %d.%.2x", vertSpeed, vertical_subspeed))
 	scaled_text(78, 92, string.format("Turbo %d/32767", turboReserves))
 	scaled_text(78.75, 86, string.format("%5d", slideTimer))
 	scaled_text(40, 00, string.format("%3d.%02x/%3d.%02x", absPos, absSubPos, maxAbsPos, maxAbsSubPos))
 	scaled_text(86.75, 78, string.format("%5d", jumpTimer))
 	scaled_text(89, 80.5, string.format("%3d", landing))
-    scaled_text(68, 10, wumpa_count, "orange") -- test
+    scaled_text(68, 10, string.format("%x: %d", address + 0x30, wumpa_count), "orange") -- test
     scaled_text(12, 90, number_position, "blue") -- test
+    
+    -- Positions
+    scaled_text(10, 64, string.format("X = %d.%.2x", x_pos, x_subpixel))
+    scaled_text(10, 68, string.format("Y = %d.%.2x", y_pos, y_subpixel))
+    scaled_text(10, 72, string.format("Z = %d.%.2x", z_pos, z_subpixel))
+    
+    scaled_text(10, 76, string.format("%d (%f, %f)", direction, combined_speed*x_angle, combined_speed*y_angle), "red")
+    gui.text(600, 0, horizontal_speed, "blue") --
+    scaled_text(10, 80, string.format("Effec. Incl.(%d, %d) %d", effective_inclination1, effective_inclination2, speed_inclination))
 end
 
 local function display()
 	local on_level = mainmemory.read_s8(ram["on_level"])
-    gui.text(0, 0, on_level, "yellow")
-	if on_level==2 then
+    
+    if on_level==2 then
 		info()
 	end
 	return
