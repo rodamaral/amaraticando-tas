@@ -4,7 +4,6 @@ Banzai Mario World - 100% + all moons TAS
 Authors:
  - Amaraticando
  - [Bruno Valads](https://twitter.com/BrunoValads)
- - [KaizoPlayer TASER](https://www.youtube.com/channel/UChO1wwgM2h00-9yRXmOaAAw)
  - [KaizoBoy](https://www.youtube.com/user/007cxz)
  - [Bruno Visnadi](https://www.youtube.com/channel/UCVoUfT49xN9TU-gDMHv57sw)
 
