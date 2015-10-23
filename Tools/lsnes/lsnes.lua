@@ -35,8 +35,9 @@ local COLOUR = {
     very_weak = 0xa0ffffff,
 }
 
--- EDIT???
+-- TODO: make them local
 LSNES = {}
+ROM_INFO = {}
 draw = {}
 
 -- Font settings
@@ -130,20 +131,35 @@ end
 -- Transform the binary representation of base into a string
 -- For instance, if each bit of a number represents a char of base, then this function verifies what chars are on
 local function decode_bits(data, base)
-    local result = {}
     local i = 1
     local size = base:len()
+    local direct_concatenation = size <= 45  -- Performance: I found out that the .. operator is faster for 45 operations or less
+    local result
     
-    for ch in base:gmatch(".") do
-        if bit.test(data, size-i) then
-            result[i] = ch
-        else
-            result[i] = " "
+    if direct_concatenation then
+        result = ""
+        for ch in base:gmatch(".") do
+            if bit.test(data, size - i) then
+                result = result .. ch
+            else
+                result = result .. " "
+            end
+            i = i + 1
         end
-        i = i + 1
+    else
+        result = {}
+        for ch in base:gmatch(".") do
+            if bit.test(data, size-i) then
+                result[i] = ch
+            else
+                result[i] = " "
+            end
+            i = i + 1
+        end
+        result = table.concat(result)
     end
     
-    return table.concat(result)
+    return result
 end
 
 
@@ -246,7 +262,7 @@ end
 
 
 function draw.font_width(font)
-    font = font or Font
+    font = font or Font  -- TODO: change Font to draw.Font_name ?
     return CUSTOM_FONTS[font] and CUSTOM_FONTS[font].width or LSNES.FONT_WIDTH
 end
 
@@ -257,39 +273,32 @@ function draw.font_height(font)
 end
 
 
-function LSNES.get_emu_status()
-    LSNES.Runmode = gui.get_runmode()
-    LSNES.Lsnes_speed = settings.get_speed()
-    
-end
-
 function LSNES.get_rom_info()
-    local ROM_info = {}
-    
-    ROM_info.is_loaded = movie.rom_loaded()
-    if ROM_info.is_loaded then
+    ROM_INFO.is_loaded = movie.rom_loaded()
+    if ROM_INFO.is_loaded then
         -- ROM info
         local movie_info = movie.get_rom_info()
-        ROM_info.slots = #movie_info
-        ROM_info.hint = movie_info[1].hint
-        ROM_info.hash = movie_info[1].sha256
+        ROM_INFO.slots = #movie_info
+        ROM_INFO.hint = movie_info[1].hint
+        ROM_INFO.hash = movie_info[1].sha256
         
         -- Game info
         local game_info = movie.get_game_info()
-        ROM_info.game_type = game_info.gametype
-        ROM_info.game_fps = game_info.fps
+        ROM_INFO.game_type = game_info.gametype
+        ROM_INFO.game_fps = game_info.fps
     else
         -- ROM info
-        ROM_info.slots = 0
-        ROM_info.hint = false
-        ROM_info.hash = false
+        ROM_INFO.slots = 0
+        ROM_INFO.hint = false
+        ROM_INFO.hash = false
         
         -- Game info
-        ROM_info.game_type = false
-        ROM_info.game_fps = false
+        ROM_INFO.game_type = false
+        ROM_INFO.game_fps = false
     end
     
-    return ROM_info
+    ROM_INFO.info_loaded = true
+    print"> Read rom info"
 end
 
 function LSNES.get_controller_info()
@@ -562,9 +571,9 @@ end
 
 -- Returns frames-time conversion
 local function frame_time(frame)
-    if not LSNES.rom or not LSNES.rom.is_loaded then return "no time" end
+    if not ROM_INFO.info_loaded or not ROM_INFO.is_loaded then return "no time" end
     
-    local total_seconds = frame / LSNES.rom.game_fps
+    local total_seconds = frame / ROM_INFO.game_fps
     local hours, minutes, seconds = bit.multidiv(total_seconds, 3600, 60)
     seconds = math.floor(seconds)
     
@@ -897,6 +906,7 @@ function LSNES.display_input()
     -- Font
     draw.Font_name = false
     draw.opacity(1.0, 1.0)
+    local default_color = LSNES.movie.Readonly and COLOUR.text or 0xffff00
     local width  = draw.font_width()
     local height = draw.font_height()
     local before = LSNES.Buffer_height//(2*height)
@@ -920,7 +930,7 @@ function LSNES.display_input()
             input = LSNES.treat_input(raw_input)
             is_startframe = raw_input:get_button(0, 0, 0)
             if not is_startframe then subframe_around = true end
-            color = is_startframe and COLOUR.text or 0xff
+            color = is_startframe and default_color or 0xff
         elseif frame == LSNES.movie.current_frame then
             input = LSNES.treat_input(LSNES.movie.last_input_computed)
             is_delayedinput = true
@@ -952,7 +962,7 @@ function LSNES.display_input()
         
         if raw_input and raw_input:get_button(0, 0, 0) then
             if subframe ~= current_subframe then frame = frame + 1 end
-            color = COLOUR.text
+            color = default_color
         else
             if raw_input then
                 subframe_around = true
@@ -974,14 +984,14 @@ end
 --]]
 
 
--- Function that is called from the paint and video callbacks
--- from_paint is true if this was called from on_paint/ false if from on_video
-local function main_paint_function(authentic_paint, from_paint)
+local draw = draw
+function on_paint(authentic_paint)
     -- Initial values, don't make drawings here
     read_raw_input()
-    LSNES.get_emu_status()
+    LSNES.Runmode = gui.get_runmode()
+    LSNES.Lsnes_speed = settings.get_speed()
     
-    if not LSNES.rom then LSNES.rom = LSNES.get_rom_info() ; print"> Read rom info" end
+    if not ROM_INFO.info_loaded then LSNES.get_rom_info() end
     if not LSNES.controller then LSNES.controller = LSNES.get_controller_info() ; print"> Read controller info" end
     LSNES.get_movie_info()
     LSNES.left_gap = math.min(8*(LSNES.controller.total_buttons + LSNES.controller.total_controllers + 14), 500) -- TEST
@@ -999,23 +1009,9 @@ local function main_paint_function(authentic_paint, from_paint)
 end
 
 
-local draw = draw
-function on_paint(authentic_paint)
-    main_paint_function(authentic_paint, true)
-    
-    --[=[
-    --local _input = LSNES.get_input(LSNES.movie.Lastframe_emulated)
-    for i=1, 50 do
-        --LSNES.display_input_serialized()
-        LSNES.display_input()
-    end
-    --]=]
-end
-
-
 function on_video()
     LSNES.Video_callback = true
-    main_paint_function(false, false)
+    -- main_paint_function(false, false) -- remove
     LSNES.Video_callback = false
 end
 
@@ -1049,7 +1045,7 @@ function on_movie_lost(kind)
     print("ON MOVIE LOST", kind)
     
     if kind == "reload" then  -- just before reloading the ROM in rec mode or closing/loading new ROM
-        LSNES.rom = false
+        ROM_INFO.info_loaded = false
         LSNES.controller = false
         
     elseif kind == "load" then -- this is called just before loading / use on_post_load when needed
