@@ -38,6 +38,7 @@ local COLOUR = {
 -- TODO: make them local
 LSNES = {}
 ROM_INFO = {}
+CONTROLLER = {}
 draw = {}
 
 -- Font settings
@@ -302,20 +303,20 @@ function LSNES.get_rom_info()
 end
 
 function LSNES.get_controller_info()
-    local info = {}
+    local info = CONTROLLER
     
     info.ports = {}
     info.num_ports = 0
     info.total_buttons = 0
     info.total_controllers = 0
     
-    for port = 0, math.huge do
+    for port = 0, 7 do
         info.ports[port] = input.port_type(port)
         if not info.ports[port] then break end
         info.num_ports = info.num_ports + 1
     end
     
-    for lcid = 0, math.huge do
+    for lcid = 0, 7 do
         local port, controller = input.lcid_to_pcid2(lcid)
         local ci = (port and controller) and input.controller_info(port, controller) or nil
         local symbols = {}
@@ -346,7 +347,8 @@ function LSNES.get_controller_info()
         print(a,b)
     end
     --]]
-    return info
+    info.info_loaded = true
+    print"> Read controller info"
 end
 
 function LSNES.get_movie_info()
@@ -783,11 +785,11 @@ end
 function LSNES.treat_input(input_obj)
     local presses = {}
     local index = 1
-    local number_controls = OPTIONS.display_all_controllers and LSNES.controller.total_controllers or 1
+    local number_controls = OPTIONS.display_all_controllers and CONTROLLER.total_controllers or 1
     for lcid = 1, number_controls do
         local port, cnum = input.lcid_to_pcid2(lcid)
-        for control = 1, LSNES.controller[lcid].button_count do
-            presses[index] = input_obj:get_button(port, cnum, control-1) and LSNES.controller[lcid].symbols[control] or "."
+        for control = 1, CONTROLLER[lcid].button_count do
+            presses[index] = input_obj:get_button(port, cnum, control-1) and CONTROLLER[lcid].symbols[control] or "."
             index = index + 1
         end
         
@@ -992,14 +994,14 @@ function on_paint(authentic_paint)
     LSNES.Lsnes_speed = settings.get_speed()
     
     if not ROM_INFO.info_loaded then LSNES.get_rom_info() end
-    if not LSNES.controller then LSNES.controller = LSNES.get_controller_info() ; print"> Read controller info" end
+    if not CONTROLLER.info_loaded then LSNES.get_controller_info() end
     LSNES.get_movie_info()
-    LSNES.left_gap = math.min(8*(LSNES.controller.total_buttons + LSNES.controller.total_controllers + 14), 500) -- TEST
+    LSNES.left_gap = math.min(8*(CONTROLLER.total_buttons + CONTROLLER.total_controllers + 14), 500) -- TEST
     LSNES.get_screen_info()
     create_gaps()
     
     if not authentic_paint then gui.text(-8, -16, "*") end
-    draw.text(- LSNES.Border_left, -20, tostringx(LSNES.controller.ports))
+    draw.text(- LSNES.Border_left, -20, tostringx(CONTROLLER.ports))
     --draw.text(-96, -16, movie.currentframe().." "..tostring(LSNES.frame_boundary))
     --gui.text( -140, -16, LSNES.movie.internal_subframe, "yellow", "black") -- EDIT
     
@@ -1046,10 +1048,10 @@ function on_movie_lost(kind)
     
     if kind == "reload" then  -- just before reloading the ROM in rec mode or closing/loading new ROM
         ROM_INFO.info_loaded = false
-        LSNES.controller = false
+        CONTROLLER.info_loaded = false
         
     elseif kind == "load" then -- this is called just before loading / use on_post_load when needed
-        LSNES.controller = false
+        CONTROLLER.info_loaded = false
         
     end
     
