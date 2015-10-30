@@ -352,9 +352,9 @@ function LSNES.get_controller_info()
     print"> Read controller info"
 end
 
-function LSNES.get_movie_info()
+function LSNES.get_movie_info(authentic_paint)
     local pollcounter = movie.pollcounter(0, 0, 0)
-    LSNES.frame_boundary = LSNES.frame_boundary or (pollcounter ~= 0 and "polling" or "start")
+    LSNES.frame_boundary = LSNES.frame_boundary or (pollcounter ~= 0 and "middle" or authentic_paint and "end" or "start")  -- test / hack
     
     MOVIE.Readonly = movie.readonly()
     MOVIE.Framecount = movie.framecount()
@@ -363,7 +363,7 @@ function LSNES.get_movie_info()
     MOVIE.Rerecords = movie.rerecords()
     
     -- Last frame info
-    MOVIE.Lastframe_emulated = movie.currentframe() - (LSNES.frame_boundary == "start" and 1 or 0)
+    MOVIE.Lastframe_emulated = movie.currentframe() - (LSNES.frame_boundary ~= "middle" and 1 or 0)  -- test
     if MOVIE.Lastframe_emulated < 0 then MOVIE.Lastframe_emulated = 0 end
     MOVIE.Size_last_frame = LSNES.size_frame(MOVIE.Lastframe_emulated)
     if MOVIE.Lastframe_emulated <= 0 then
@@ -397,6 +397,19 @@ function LSNES.get_movie_info()
     
     -- TEST INPUT
     MOVIE.last_input_computed = LSNES.get_input(MOVIE.Subframecount)
+end
+
+function LSNES.debug_movie()
+    local x, y = 0, 100
+    
+    draw.text(x, y, "subframe_update: " .. tostringx(LSNES.subframe_update))
+    y = y + 16
+    draw.text(x, y, string.format("Currentframe: %d, Movie framecount: %d, count_frames: %d",  movie.currentframe(), movie.framecount(),  movie.count_frames()))
+    y = y + 16
+    draw.text(x, y, string.format("Currentframe: %d, Movie subframecount: %d",  movie.currentframe(), movie.get_size()))
+    y = y + 16
+    draw.text(x, y, "pollcounter: " .. movie.pollcounter(0, 0, 0))
+    y = y + 16
 end
 
 function LSNES.get_screen_info()
@@ -745,6 +758,7 @@ on_keyhook = Keys.altkeyhook
 Keys.registerkeypress(OPTIONS.hotkey_increase_opacity, function() draw.increase_opacity() end)
 Keys.registerkeypress(OPTIONS.hotkey_decrease_opacity, function() draw.decrease_opacity() end)
 Keys.registerkeypress("period", function()
+    print"pressed period"
     LSNES.subframe_update = not LSNES.subframe_update
     gui.subframe_update(LSNES.subframe_update)
     gui.repaint()
@@ -752,11 +766,15 @@ end)
 
 
 function on_frame_emulated()
+    --print("FRAME EMULATED", movie.pollcounter(0,0,0))
+    
     LSNES.Is_lagged = memory.get_lag_flag()
     LSNES.frame_boundary = "end"
 end
 
 function on_frame()
+    --print("FRAME", movie.pollcounter(0,0,0))
+    
     LSNES.frame_boundary = "start"
     if not movie.rom_loaded() then  -- only useful with null ROM
         gui.repaint()
@@ -765,7 +783,11 @@ end
 
 
 function on_snoop(port, controller, button, value)
-    if port == 0 then LSNES.frame_boundary = "polling" end
+    --[[
+    if port == 0 or (port == 1 and button == 1) then
+        print("ON_SNOOP", port, controller, button, value, movie.pollcounter(port, controller, button))
+    end
+    --]]
 end
 
 
@@ -808,6 +830,13 @@ end
 --]]
 
 
+-- Colour schemes:
+-- white: readonly frames
+-- yellow: readwrite frames
+-- blue: subframes
+-- redish: nullinput after the end of the movie, in readonly mode
+-- cyan: delayed subframe input that will be saved but wasn't yet (lsnes bug)
+-- green: "Unrecorded" message
 function LSNES.display_input()
     -- Font
     draw.Font_name = false
@@ -817,7 +846,7 @@ function LSNES.display_input()
     local height = draw.font_height()
     local before = LSNES.Buffer_height//(2*height)
     local after = before
-    local y_text = LSNES.Buffer_middle_y - height
+    local x_text, y_text = -LSNES.Border_left, LSNES.Buffer_middle_y - height
     local color, subframe_around = nil, false
     
     local current_subindex, current_subframe, current_frame, frame, input, subindex
@@ -847,7 +876,7 @@ function LSNES.display_input()
             color = 0xff8080
         end
         
-        draw.text(-LSNES.Border_left, y_text, input, color)
+        draw.text(x_text, y_text, input, color)
         
         if is_startframe or is_nullinput then
             frame = frame - 1
@@ -855,9 +884,9 @@ function LSNES.display_input()
         y_text = y_text - height
     end
     
-    draw.line(-LSNES.Border_left, 0, -1, 0, 0xff)
-    draw.line(-LSNES.Border_left, LSNES.Buffer_height//4, -1, LSNES.Buffer_height//4, 0xff0000)
-    draw.line(-LSNES.Border_left, LSNES.Buffer_height//2, -1, LSNES.Buffer_height//2, 0xff)
+    draw.line(x_text, 0, -1, 0, 0xff)
+    draw.line(x_text, LSNES.Buffer_height//4, -1, LSNES.Buffer_height//4, 0xff0000)
+    draw.line(x_text, LSNES.Buffer_height//2, -1, LSNES.Buffer_height//2, 0xff)
     
     y_text = LSNES.Buffer_middle_y
     frame = current_frame
@@ -878,17 +907,24 @@ function LSNES.display_input()
             end
         end
         
-        draw.text(-LSNES.Border_left, y_text, input, color)
+        draw.text(x_text, y_text, input, color)
         y_text = y_text + height
         
         if not raw_input then break end
     end
     
-    LSNES.subframe_update = subframe_around
-    gui.subframe_update(LSNES.subframe_update)
+    -- TEST -- edit
+    --LSNES.subframe_update = subframe_around
+    --gui.subframe_update(LSNES.subframe_update)
 end
 --]]
 
+-- test
+function on_input(subframe)
+    --print("ON_INPUT", subframe, movie.pollcounter(0, 0, 0))
+    MOVIE.Lastframe_emulated = movie.currentframe()
+    LSNES.frame_boundary = "middle"
+end
 
 local draw = draw
 function on_paint(authentic_paint)
@@ -899,19 +935,21 @@ function on_paint(authentic_paint)
     
     if not ROM_INFO.info_loaded then LSNES.get_rom_info() end
     if not CONTROLLER.info_loaded then LSNES.get_controller_info() end
-    LSNES.get_movie_info()
+    LSNES.get_movie_info(authentic_paint)
     LSNES.left_gap = math.min(8*(CONTROLLER.total_buttons + CONTROLLER.total_controllers + 14), 500) -- TEST
     LSNES.get_screen_info()
     create_gaps()
     
     if not authentic_paint then gui.text(-8, -16, "*") end
-    draw.text(- LSNES.Border_left, -20, tostringx(CONTROLLER.ports))
-    --draw.text(-96, -16, movie.currentframe().." "..tostring(LSNES.frame_boundary))
-    --gui.text( -140, -16, MOVIE.internal_subframe, "yellow", "black") -- EDIT
+    --draw.text(0, LSNES.Buffer_height - 32, tostringx(CONTROLLER.ports))
     
     LSNES.display_input()
     
+    LSNES.Font_name = "snes9xtext"
+    LSNES.debug_movie()
+    
     show_movie_info(OPTIONS.display_movie_info)
+    gui.text(0, 400, "Garbage " .. collectgarbage("count"), "purple", "orange", "magenta") -- remove
 end
 
 
@@ -923,12 +961,17 @@ end
 
 
 -- Loading a state
-function on_pre_load()
+function on_pre_load(...)
+    print(..., "PRE LOAD")
     LSNES.frame_boundary = "start" --false -- TEST
     LSNES.Is_lagged = false
     
 end
 
+function on_post_load(...)
+    print(..., "ON POST LOAD")
+    MOVIE.Lastframe_emulated = movie.currentframe() -- test
+end
 
 -- Functions called on specific events
 function on_readwrite()
