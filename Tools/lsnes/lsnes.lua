@@ -10,6 +10,7 @@ local OPTIONS = {
     -- Script settings
     use_custom_fonts = true,
     display_all_controllers = true,
+    display_controller_mode = "all",
     
     -- Lateral gaps (initial values)
     left_gap = 40*8 + 2,
@@ -311,7 +312,7 @@ function LSNES.get_controller_info()
     info.total_buttons = 0
     info.total_controllers = 0
     
-    for port = 0, 7 do
+    for port = 0, 2 do  -- SNES
         info.ports[port] = input.port_type(port)
         if not info.ports[port] then break end
         info.num_ports = info.num_ports + 1
@@ -343,9 +344,16 @@ function LSNES.get_controller_info()
         end
     end
     
-    --[[
+    --[[ debug
     for a,b in pairs(info) do
-        print(a,b)
+        if type(b) == "table" then
+            print(a, tostring(b))
+            for c,d in pairs(b) do
+                print(">", c, d)
+            end
+        else
+            print(a,b)
+        end
     end
     --]]
     info.info_loaded = true
@@ -354,7 +362,7 @@ end
 
 function LSNES.get_movie_info(authentic_paint)
     local pollcounter = movie.pollcounter(0, 0, 0)
-    LSNES.frame_boundary = LSNES.frame_boundary or (pollcounter ~= 0 and "middle" or authentic_paint and "end" or "start")  -- test / hack
+    LSNES.frame_boundary = LSNES.frame_boundary or (pollcounter ~= 0 and "middle" or (authentic_paint and "end" or "start"))  -- test / hack
     
     MOVIE.Readonly = movie.readonly()
     MOVIE.Framecount = movie.framecount()
@@ -410,10 +418,28 @@ function LSNES.debug_movie()
     y = y + 16
     draw.text(x, y, "pollcounter: " .. movie.pollcounter(0, 0, 0))
     y = y + 16
+    
+    --[[
+    x = 200
+    y = 16
+    local colour = {[1] = 0xffff00, [2] = 0x00ff00}
+    for port = 1, 2 do
+        for controller = 0, 3 do
+            for control = 0, 15 do
+                if y >= 432 then
+                    y = 16
+                    x = x + 48
+                end
+                draw.text(x, y, control .. " " .. movie.pollcounter(port, controller, control), colour[(2*port + controller)%2 + 1], 0x20000000)
+                y = y + 16
+            end
+        end
+    end
+    --]]
 end
 
 function LSNES.get_screen_info()
-    LSNES.left_gap = LSNES.left_gap or OPTIONS.left_gap  -- Lateral gaps
+    LSNES.left_gap = LSNES.left_gap or OPTIONS.left_gap  -- Lateral gaps TODO: why did I write this?
     LSNES.right_gap = LSNES.right_gap or OPTIONS.right_gap
     LSNES.top_gap = LSNES.top_gap or OPTIONS.top_gap
     LSNES.bottom_gap = LSNES.bottom_gap or OPTIONS.bottom_gap
@@ -782,15 +808,6 @@ function on_frame()
 end
 
 
-function on_snoop(port, controller, button, value)
-    --[[
-    if port == 0 or (port == 1 and button == 1) then
-        print("ON_SNOOP", port, controller, button, value, movie.pollcounter(port, controller, button))
-    end
-    --]]
-end
-
-
 ---[[test
 function LSNES.size_frame(frame)
     return frame > 0 and movie.frame_subframes(frame) or -1
@@ -808,13 +825,16 @@ function LSNES.treat_input(input_obj)
     local number_controls = OPTIONS.display_all_controllers and CONTROLLER.total_controllers or 1
     for lcid = 1, number_controls do
         local port, cnum = input.lcid_to_pcid2(lcid)
-        for control = 1, CONTROLLER[lcid].button_count do
-            presses[index] = input_obj:get_button(port, cnum, control-1) and CONTROLLER[lcid].symbols[control] or "."
-            index = index + 1
+        
+        if true or cnum <= 1 then  -- test: display only 2 pads per port
+            for control = 1, CONTROLLER[lcid].button_count do
+                presses[index] = input_obj:get_button(port, cnum, control-1) and CONTROLLER[lcid].symbols[control] or "."  -- test
+                index = index + 1
+            end
         end
         
-        presses[index] = "|"
-        index = index + 1
+        --presses[index] = "|"  -- test
+        --index = index + 1
     end
     
     return table.concat(presses)
@@ -834,7 +854,7 @@ end
 -- white: readonly frames
 -- yellow: readwrite frames
 -- blue: subframes
--- redish: nullinput after the end of the movie, in readonly mode
+-- reddish: nullinput after the end of the movie, in readonly mode
 -- cyan: delayed subframe input that will be saved but wasn't yet (lsnes bug)
 -- green: "Unrecorded" message
 function LSNES.display_input()
@@ -844,11 +864,16 @@ function LSNES.display_input()
     local default_color = MOVIE.Readonly and COLOUR.text or 0xffff00
     local width  = draw.font_width()
     local height = draw.font_height()
-    local before = LSNES.Buffer_height//(2*height)
-    local after = before
-    local x_text, y_text = -LSNES.Border_left, LSNES.Buffer_middle_y - height
-    local color, subframe_around = nil, false
     
+    -- Input grid settings
+    local x_base, y_base = -LSNES.Border_left, 0
+    local grid_width, grid_height = width*CONTROLLER.total_buttons, LSNES.Buffer_height
+    local x_text, y_text = x_base, y_base + LSNES.Buffer_middle_y - height
+    local past_inputs_number = grid_height//(2*height)
+    local future_inputs_number = past_inputs_number
+    
+    -- Extra settings
+    local color, subframe_around = nil, false
     local current_subindex, current_subframe, current_frame, frame, input, subindex
     current_subframe = MOVIE.current_starting_subframe + MOVIE.internal_subframe - 1
     current_frame = MOVIE.current_frame
@@ -856,7 +881,7 @@ function LSNES.display_input()
     subframe = current_subframe - 1
     frame = MOVIE.internal_subframe == 1 and current_frame - 1 or current_frame
     
-    for subframe = subframe, subframe - before + 1, -1 do
+    for subframe = subframe, subframe - past_inputs_number + 1, -1 do
         if subframe <= 0 then break end
         
         local is_nullinput, is_startframe, is_delayedinput
@@ -887,11 +912,20 @@ function LSNES.display_input()
     draw.line(x_text, 0, -1, 0, 0xff)
     draw.line(x_text, LSNES.Buffer_height//4, -1, LSNES.Buffer_height//4, 0xff0000)
     draw.line(x_text, LSNES.Buffer_height//2, -1, LSNES.Buffer_height//2, 0xff)
+    gui.rectangle(x_base, y_base, grid_width + 1, grid_height + 1, 1, "magenta") -- test
+    
+    local total_previous_button = 0
+    for line = 1, CONTROLLER.total_controllers, 1 do
+        if line == CONTROLLER.total_controllers then break end
+        --print(line, CONTROLLER[line])
+        total_previous_button = total_previous_button + CONTROLLER[line].button_count
+        gui.line(x_base + width*total_previous_button, y_base, x_base + width*total_previous_button, LSNES.Buffer_height)
+    end
     
     y_text = LSNES.Buffer_middle_y
     frame = current_frame
     
-    for subframe = current_subframe, current_subframe + after - 1 do
+    for subframe = current_subframe, current_subframe + future_inputs_number - 1 do
         local raw_input = LSNES.get_input(subframe)
         local input = raw_input and LSNES.treat_input(raw_input) or "Unrecorded"
         
@@ -912,6 +946,7 @@ function LSNES.display_input()
         
         if not raw_input then break end
     end
+    
     
     -- TEST -- edit
     --LSNES.subframe_update = subframe_around
@@ -936,7 +971,7 @@ function on_paint(authentic_paint)
     if not ROM_INFO.info_loaded then LSNES.get_rom_info() end
     if not CONTROLLER.info_loaded then LSNES.get_controller_info() end
     LSNES.get_movie_info(authentic_paint)
-    LSNES.left_gap = math.min(8*(CONTROLLER.total_buttons + CONTROLLER.total_controllers + 14), 500) -- TEST
+    LSNES.left_gap = 8*CONTROLLER.total_buttons
     LSNES.get_screen_info()
     create_gaps()
     
