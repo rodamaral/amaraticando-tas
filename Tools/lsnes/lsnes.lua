@@ -362,7 +362,11 @@ end
 
 function LSNES.get_movie_info(authentic_paint)
     local pollcounter = movie.pollcounter(0, 0, 0)
+    LSNES.pollcounter = pollcounter  -- test
+    --if pollcounter == 0 then LSNES.frame_boundary = "start"
+    --elseif authentic_paint
     LSNES.frame_boundary = LSNES.frame_boundary or (pollcounter ~= 0 and "middle" or (authentic_paint and "end" or "start"))  -- test / hack
+    if gui.get_runmode() == "pause_break" then LSNES.frame_boundary = "middle" end
     
     MOVIE.Readonly = movie.readonly()
     MOVIE.Framecount = movie.framecount()
@@ -418,8 +422,10 @@ function LSNES.debug_movie()
     y = y + 16
     draw.text(x, y, "pollcounter: " .. movie.pollcounter(0, 0, 0))
     y = y + 16
+    draw.text(x, y, LSNES.frame_boundary)
+    y = y + 16
     
-    --[[
+    ---[[
     x = 200
     y = 16
     local colour = {[1] = 0xffff00, [2] = 0x00ff00}
@@ -881,11 +887,11 @@ function LSNES.display_input()
     subframe = current_subframe - 1
     frame = MOVIE.internal_subframe == 1 and current_frame - 1 or current_frame
     
-    for subframe = subframe, subframe - past_inputs_number + 1, -1 do
-        if subframe <= 0 then break end
+    for subframe_index = subframe, subframe - past_inputs_number + 1, -1 do
+        if subframe_index <= 0 then break end
         
         local is_nullinput, is_startframe, is_delayedinput
-        local raw_input = LSNES.get_input(subframe)
+        local raw_input = LSNES.get_input(subframe_index)
         if raw_input then
             input = LSNES.treat_input(raw_input)
             is_startframe = raw_input:get_button(0, 0, 0)
@@ -901,7 +907,10 @@ function LSNES.display_input()
             color = 0xff8080
         end
         
-        draw.text(x_text, y_text, input, color)
+        local bg
+        if subframe_index == subframe and LSNES.frame_boundary == "middle" then bg = 0x10ff0000 end
+        if subframe_index == subframe and movie.pollcounter(0, 1, 0) < LSNES.pollcounter then bg = 0x00ff80 end
+        draw.text(x_text, y_text, input, color, bg)
         
         if is_startframe or is_nullinput then
             frame = frame - 1
@@ -919,7 +928,7 @@ function LSNES.display_input()
         if line == CONTROLLER.total_controllers then break end
         --print(line, CONTROLLER[line])
         total_previous_button = total_previous_button + CONTROLLER[line].button_count
-        gui.line(x_base + width*total_previous_button, y_base, x_base + width*total_previous_button, LSNES.Buffer_height)
+        gui.line(x_base + width*total_previous_button, y_base, x_base + width*total_previous_button, LSNES.Buffer_height, 0x00ff00)
     end
     
     y_text = LSNES.Buffer_middle_y
@@ -949,8 +958,8 @@ function LSNES.display_input()
     
     
     -- TEST -- edit
-    --LSNES.subframe_update = subframe_around
-    --gui.subframe_update(LSNES.subframe_update)
+    LSNES.subframe_update = subframe_around
+    gui.subframe_update(LSNES.subframe_update)
 end
 --]]
 
@@ -963,6 +972,7 @@ end
 
 local draw = draw
 function on_paint(authentic_paint)
+    gui.solidrectangle(0, 0, 512, 448, 0x20000000) -- remove
     -- Initial values, don't make drawings here
     read_raw_input()
     LSNES.Runmode = gui.get_runmode()
