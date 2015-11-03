@@ -360,13 +360,15 @@ function LSNES.get_controller_info()
     print"> Read controller info"
 end
 
+-- Get initial frame boudary state: -- EDIT
+LSNES.frame_boundary = movie.pollcounter(0, 0, 0) ~= 0 and "middle" or "start"  -- test / hack
+-- cannot be "end" in a repaint, only in authentic paints. When script starts, it should never be authentic
+
 function LSNES.get_movie_info(authentic_paint)
-    local pollcounter = movie.pollcounter(0, 0, 0)
-    LSNES.pollcounter = pollcounter  -- test
-    --if pollcounter == 0 then LSNES.frame_boundary = "start"
-    --elseif authentic_paint
-    LSNES.frame_boundary = LSNES.frame_boundary or (pollcounter ~= 0 and "middle" or (authentic_paint and "end" or "start"))  -- test / hack
-    if gui.get_runmode() == "pause_break" then LSNES.frame_boundary = "middle" end
+    LSNES.pollcounter = movie.pollcounter(0, 0, 0)
+    
+    -- DEBUG
+    if LSNES.frame_boundary ~= "middle" and gui.get_runmode() == "pause_break" then error"Frame boundary: middle case not accounted!" end
     
     MOVIE.Readonly = movie.readonly()
     MOVIE.Framecount = movie.framecount()
@@ -391,21 +393,17 @@ function LSNES.get_movie_info(authentic_paint)
     MOVIE.Final_subframe_last_frame = MOVIE.Starting_subframe_last_frame + MOVIE.Size_last_frame - 1  -- unused
     
     -- Current frame info
-    MOVIE.internal_subframe = (LSNES.frame_boundary == "start" or LSNES.frame_boundary == "end") and 1 or pollcounter + 1
+    MOVIE.internal_subframe = (LSNES.frame_boundary ~= "middle") and 1 or LSNES.pollcounter + 1
     MOVIE.current_frame = movie.currentframe() + ((LSNES.frame_boundary == "end") and 1 or 0)
     if MOVIE.current_frame == 0 then MOVIE.current_frame = 1 end
     if MOVIE.Lastframe_emulated <= MOVIE.Framecount then
         MOVIE.current_starting_subframe = movie.current_first_subframe() + 1
         if LSNES.frame_boundary == "end" then
-            MOVIE.current_starting_subframe = MOVIE.current_starting_subframe + MOVIE.Size_last_frame
+            --MOVIE.current_starting_subframe = MOVIE.current_starting_subframe + MOVIE.Size_last_frame
         end
     else
         MOVIE.current_starting_subframe = MOVIE.Subframecount + (MOVIE.current_frame - MOVIE.Framecount)
     end
-    
-    -- Next frame info (only relevant in readonly mode)
-    MOVIE.Nextframe = MOVIE.Lastframe_emulated + 1  -- unused
-    MOVIE.Starting_subframe_next_frame = MOVIE.Final_subframe_last_frame + 1  -- unused
     
     -- TEST INPUT
     MOVIE.last_input_computed = LSNES.get_input(MOVIE.Subframecount)
@@ -416,16 +414,18 @@ function LSNES.debug_movie()
     
     draw.text(x, y, "subframe_update: " .. tostringx(LSNES.subframe_update))
     y = y + 16
-    draw.text(x, y, string.format("Currentframe: %d, Movie framecount: %d, count_frames: %d",  movie.currentframe(), movie.framecount(),  movie.count_frames()))
+    draw.text(x, y, string.format("currentframe: %d, framecount: %d, count_frames: %d",  movie.currentframe(), movie.framecount(),  movie.count_frames()))
     y = y + 16
-    draw.text(x, y, string.format("Currentframe: %d, Movie subframecount: %d",  movie.currentframe(), movie.get_size()))
+    draw.text(x, y, string.format("get_size: %d",  movie.get_size()))
+    y = y + 16
+    draw.text(x, y, "current_first_subframe: " .. movie.current_first_subframe())
     y = y + 16
     draw.text(x, y, "pollcounter: " .. movie.pollcounter(0, 0, 0))
     y = y + 16
     draw.text(x, y, LSNES.frame_boundary)
     y = y + 16
     
-    ---[[
+    --[[
     x = 200
     y = 16
     local colour = {[1] = 0xffff00, [2] = 0x00ff00}
@@ -805,7 +805,7 @@ function on_frame_emulated()
 end
 
 function on_frame()
-    --print("FRAME", movie.pollcounter(0,0,0))
+    --print("ON FRAME", movie.pollcounter(0,0,0))
     
     LSNES.frame_boundary = "start"
     if not movie.rom_loaded() then  -- only useful with null ROM
@@ -876,7 +876,7 @@ function LSNES.display_input()
     local grid_width, grid_height = width*CONTROLLER.total_buttons, LSNES.Buffer_height
     local x_text, y_text = x_base, y_base + LSNES.Buffer_middle_y - height
     local past_inputs_number = grid_height//(2*height)
-    local future_inputs_number = past_inputs_number
+    local future_inputs_number = grid_height//height - past_inputs_number
     
     -- Extra settings
     local color, subframe_around = nil, false
@@ -958,8 +958,8 @@ function LSNES.display_input()
     
     
     -- TEST -- edit
-    LSNES.subframe_update = subframe_around
-    gui.subframe_update(LSNES.subframe_update)
+    --LSNES.subframe_update = subframe_around
+    --gui.subframe_update(LSNES.subframe_update)
 end
 --]]
 
@@ -972,7 +972,9 @@ end
 
 local draw = draw
 function on_paint(authentic_paint)
-    gui.solidrectangle(0, 0, 512, 448, 0x20000000) -- remove
+    --print("ON PAINT", movie.pollcounter(0, 0, 0))
+    gui.solidrectangle(0, 0, 512, 448, 0x30000000) -- remove
+    
     -- Initial values, don't make drawings here
     read_raw_input()
     LSNES.Runmode = gui.get_runmode()
