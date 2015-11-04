@@ -886,14 +886,14 @@ function LSNES.display_input()
     -- Extra settings
     local color, subframe_around = nil, false
     local input
-    local subframe = MOVIE.current_subframe - 1
+    local subframe = math.min(MOVIE.current_subframe, MOVIE.current_starting_subframe + MOVIE.size_current_frame)  -- test for frames with subframes, but not in the movie
     local frame = MOVIE.internal_subframe == 1 and MOVIE.current_frame - 1 or MOVIE.current_frame
     
-    for subframe_index = subframe, subframe - past_inputs_number + 1, -1 do
-        if subframe_index <= 0 then break end
+    for subframe_id = subframe - 1, subframe - past_inputs_number + 1, -1 do
+        if subframe_id <= 0 then break end
         
         local is_nullinput, is_startframe, is_delayedinput
-        local raw_input = LSNES.get_input(subframe_index)
+        local raw_input = LSNES.get_input(subframe_id)
         if raw_input then
             input = LSNES.treat_input(raw_input)
             is_startframe = raw_input:get_button(0, 0, 0)
@@ -934,12 +934,12 @@ function LSNES.display_input()
     y_text = LSNES.Buffer_middle_y
     frame = MOVIE.current_frame
     
-    for subframe = MOVIE.current_subframe, MOVIE.current_subframe + future_inputs_number - 1 do
-        local raw_input = LSNES.get_input(subframe)
+    for subframe_id = subframe, subframe + future_inputs_number - 1 do
+        local raw_input = LSNES.get_input(subframe_id)
         local input = raw_input and LSNES.treat_input(raw_input) or "Unrecorded"
         
         if raw_input and raw_input:get_button(0, 0, 0) then
-            if subframe ~= MOVIE.current_subframe then frame = frame + 1 end
+            if subframe_id ~= MOVIE.current_subframe then frame = frame + 1 end
             color = default_color
         else
             if raw_input then
