@@ -379,7 +379,9 @@ function LSNES.get_movie_info(authentic_paint)
     -- CURRENT
     MOVIE.current_frame = movie.currentframe() + ((LSNES.frame_boundary == "end") and 1 or 0)
     if MOVIE.current_frame == 0 then MOVIE.current_frame = 1 end  -- after the rewind, the currentframe isn't updated to 1
-    MOVIE.internal_subframe = (LSNES.frame_boundary ~= "middle") and 1 or LSNES.pollcounter -- TODO: this should be incremented after all the buttons have been polled
+    
+    MOVIE.internal_subframe = (LSNES.frame_boundary ~= "middle") and 1 or LSNES.pollcounter + 1
+    -- TODO: this should be incremented after all the buttons have been polled
     
     MOVIE.last_frame_started_movie = MOVIE.current_frame - (LSNES.frame_boundary == "middle" and 0 or 1) --test
     if MOVIE.last_frame_started_movie <= MOVIE.Framecount then
@@ -393,6 +395,9 @@ function LSNES.get_movie_info(authentic_paint)
     
     MOVIE.current_subframe = MOVIE.current_starting_subframe + MOVIE.internal_subframe - 1  -- current subframes being emulated
     MOVIE.size_current_frame = LSNES.size_frame(MOVIE.current_frame)  -- how many subframes of current frames are stored in the movie
+    MOVIE.current_movie_subframe = MOVIE.current_starting_subframe - 1 + 
+        (MOVIE.internal_subframe > MOVIE.size_current_frame and MOVIE.size_current_frame or MOVIE.internal_subframe)
+    ; -- for frames with subframes, but not written in the movie
     
     -- TEST INPUT
     MOVIE.last_input_computed = LSNES.get_input(MOVIE.Subframecount)
@@ -886,7 +891,7 @@ function LSNES.display_input()
     -- Extra settings
     local color, subframe_around = nil, false
     local input
-    local subframe = math.min(MOVIE.current_subframe, MOVIE.current_starting_subframe + MOVIE.size_current_frame)  -- test for frames with subframes, but not in the movie
+    local subframe = MOVIE.current_movie_subframe
     local frame = MOVIE.internal_subframe == 1 and MOVIE.current_frame - 1 or MOVIE.current_frame
     
     for subframe_id = subframe - 1, subframe - past_inputs_number + 1, -1 do
@@ -989,7 +994,7 @@ function on_paint(authentic_paint)
     --draw.text(0, LSNES.Buffer_height - 32, tostringx(CONTROLLER.ports))
     
     LSNES.display_input()
-    LSNES.debug_movie()
+    --LSNES.debug_movie()
     show_movie_info(OPTIONS.display_movie_info)
     
     gui.text(300, 400, "Garbage " .. collectgarbage("count"), "purple", "orange", "magenta") -- remove
