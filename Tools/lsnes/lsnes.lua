@@ -380,7 +380,7 @@ function LSNES.get_movie_info(authentic_paint)
     MOVIE.current_frame = movie.currentframe() + ((LSNES.frame_boundary == "end") and 1 or 0)
     if MOVIE.current_frame == 0 then MOVIE.current_frame = 1 end  -- after the rewind, the currentframe isn't updated to 1
     
-    MOVIE.internal_subframe = (LSNES.frame_boundary ~= "middle") and 1 or LSNES.pollcounter + 1
+    MOVIE.current_poll = (LSNES.frame_boundary ~= "middle") and 1 or LSNES.pollcounter + 1
     -- TODO: this should be incremented after all the buttons have been polled
     
     MOVIE.last_frame_started_movie = MOVIE.current_frame - (LSNES.frame_boundary == "middle" and 0 or 1) --test
@@ -393,18 +393,21 @@ function LSNES.get_movie_info(authentic_paint)
         MOVIE.current_starting_subframe = MOVIE.Subframecount + (MOVIE.current_frame - MOVIE.Framecount)
     end
     
-    MOVIE.current_subframe = MOVIE.current_starting_subframe + MOVIE.internal_subframe - 1  -- current subframes being emulated
     MOVIE.size_current_frame = LSNES.size_frame(MOVIE.current_frame)  -- how many subframes of current frames are stored in the movie
-    MOVIE.current_movie_subframe = MOVIE.current_starting_subframe + 
-        (MOVIE.internal_subframe > MOVIE.size_current_frame and MOVIE.size_current_frame or MOVIE.internal_subframe - 1)
-    ; -- for frames with subframes, but not written in the movie
+    if MOVIE.size_current_frame == 0 then MOVIE.size_current_frame = 1 end  -- fix it
+    MOVIE.current_internal_subframe = (MOVIE.current_poll > MOVIE.size_current_frame) and MOVIE.size_current_frame or MOVIE.current_poll
+    MOVIE.current_subframe = MOVIE.current_starting_subframe + MOVIE.current_internal_subframe - 1
+    -- for frames with subframes, but not written in the movie
+    
+    -- PAST SUBFRAME
+    MOVIE.frame_of_past_subframe = MOVIE.current_frame - (MOVIE.current_internal_subframe == 1 and 1 or 0)
     
     -- TEST INPUT
     MOVIE.last_input_computed = LSNES.get_input(MOVIE.Subframecount)
 end
 
 function LSNES.debug_movie()
-    local x, y = 0, 100
+    local x, y = 150, 100
     
     draw.text(x, y, "subframe_update: " .. tostringx(LSNES.subframe_update))
     y = y + 16
@@ -891,8 +894,8 @@ function LSNES.display_input()
     -- Extra settings
     local color, subframe_around = nil, false
     local input
-    local subframe = MOVIE.current_movie_subframe
-    local frame = MOVIE.internal_subframe == 1 and MOVIE.current_frame - 1 or MOVIE.current_frame
+    local subframe = MOVIE.current_subframe
+    local frame = MOVIE.frame_of_past_subframe -- frame corresponding to subframe-1
     
     for subframe_id = subframe - 1, subframe - past_inputs_number + 1, -1 do
         if subframe_id <= 0 then break end
@@ -915,7 +918,7 @@ function LSNES.display_input()
             color = 0xff8080
         end
         
-        draw.text(x_text, y_text, input, color)
+        draw.text(x_text, y_text, input .. " : " .. frame .. ", " .. subframe_id, color)
         
         if is_startframe or is_nullinput then
             frame = frame - 1
@@ -923,16 +926,14 @@ function LSNES.display_input()
         y_text = y_text - height
     end
     
+    -- Grid drawing
     draw.line(x_text, 0, -1, 0, 0xff)
-    --draw.line(x_text, LSNES.Buffer_height//4, -1, LSNES.Buffer_height//4, 0xff0000)
     gui.rectangle(x_text, LSNES.Buffer_height//2, grid_width + 1, height + 1, 1, 0xff0000, 0xa0ff0000)
     draw.line(x_text, LSNES.Buffer_height//2, -1, LSNES.Buffer_height//2, 0xff)
     gui.rectangle(x_base, y_base, grid_width + 1, grid_height + 1, 1, "magenta") -- test
-    
     local total_previous_button = 0
     for line = 1, CONTROLLER.total_controllers, 1 do
         if line == CONTROLLER.total_controllers then break end
-        --print(line, CONTROLLER[line])
         total_previous_button = total_previous_button + CONTROLLER[line].button_count
         gui.line(x_base + width*total_previous_button, y_base, x_base + width*total_previous_button, LSNES.Buffer_height, 0x00ff00)
     end
@@ -956,7 +957,7 @@ function LSNES.display_input()
             end
         end
         
-        draw.text(x_text, y_text, input, color)
+        draw.text(x_text, y_text, input .. " : " .. frame .. ", " .. subframe_id, color)
         y_text = y_text + height
         
         if not raw_input then break end
