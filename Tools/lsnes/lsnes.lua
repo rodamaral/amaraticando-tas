@@ -370,11 +370,11 @@ function LSNES.get_movie_info(authentic_paint)
     -- DEBUG
     if LSNES.frame_boundary ~= "middle" and gui.get_runmode() == "pause_break" then error"Frame boundary: middle case not accounted!" end
     
-    MOVIE.Readonly = movie.readonly()
-    MOVIE.Framecount = movie.framecount()
-    MOVIE.Subframecount = movie.get_size()
-    MOVIE.Lagcount = movie.lagcount()
-    MOVIE.Rerecords = movie.rerecords()
+    MOVIE.readonly = movie.readonly()
+    MOVIE.framecount = movie.framecount()
+    MOVIE.subframe_count = movie.get_size()
+    MOVIE.lagcount = movie.lagcount()
+    MOVIE.rerecords = movie.rerecords()
     
     -- CURRENT
     MOVIE.current_frame = movie.currentframe() + ((LSNES.frame_boundary == "end") and 1 or 0)
@@ -383,17 +383,18 @@ function LSNES.get_movie_info(authentic_paint)
     MOVIE.current_poll = (LSNES.frame_boundary ~= "middle") and 1 or LSNES.pollcounter + 1
     -- TODO: this should be incremented after all the buttons have been polled
     
+    MOVIE.size_current_frame = LSNES.size_frame(MOVIE.current_frame)  -- how many subframes of current frames are stored in the movie
+    MOVIE.size_past_frame = LSNES.size_frame(MOVIE.current_frame - 1)
     MOVIE.last_frame_started_movie = MOVIE.current_frame - (LSNES.frame_boundary == "middle" and 0 or 1) --test
-    if MOVIE.last_frame_started_movie <= MOVIE.Framecount then
+    if MOVIE.last_frame_started_movie <= MOVIE.framecount then
         MOVIE.current_starting_subframe = movie.current_first_subframe() + 1
         if LSNES.frame_boundary == "end" then
-            MOVIE.current_starting_subframe = MOVIE.current_starting_subframe + LSNES.pollcounter  -- movie.current_first_subframe() isn't updated
+            MOVIE.current_starting_subframe = MOVIE.current_starting_subframe + MOVIE.size_past_frame  -- movie.current_first_subframe() isn't updated
         end                                                                                        -- until the frame boundary is "start"
     else
-        MOVIE.current_starting_subframe = MOVIE.Subframecount + (MOVIE.current_frame - MOVIE.Framecount)
+        MOVIE.current_starting_subframe = MOVIE.subframe_count + (MOVIE.current_frame - MOVIE.framecount)
     end
     
-    MOVIE.size_current_frame = LSNES.size_frame(MOVIE.current_frame)  -- how many subframes of current frames are stored in the movie
     if MOVIE.size_current_frame == 0 then MOVIE.size_current_frame = 1 end  -- fix it
     MOVIE.current_internal_subframe = (MOVIE.current_poll > MOVIE.size_current_frame) and MOVIE.size_current_frame or MOVIE.current_poll
     MOVIE.current_subframe = MOVIE.current_starting_subframe + MOVIE.current_internal_subframe - 1
@@ -403,7 +404,7 @@ function LSNES.get_movie_info(authentic_paint)
     MOVIE.frame_of_past_subframe = MOVIE.current_frame - (MOVIE.current_internal_subframe == 1 and 1 or 0)
     
     -- TEST INPUT
-    MOVIE.last_input_computed = LSNES.get_input(MOVIE.Subframecount)
+    MOVIE.last_input_computed = LSNES.get_input(MOVIE.subframe_count)
 end
 
 function LSNES.debug_movie()
@@ -423,7 +424,7 @@ function LSNES.debug_movie()
     y = y + 16
     
     for a, b in pairs(MOVIE) do
-        gui.text(x, y, string.format("%s %s", a, tostring(b)), 'yellow', 'black')
+        gui.text(x, y, string.format("%s %s", a, tostring(b)), 'yellow', 0x80000000)
         y = y + 16
     end
     --[[
@@ -719,18 +720,18 @@ local function show_movie_info()
     local x_text = 0
     local width = draw.font_width()
     
-    local rec_color = MOVIE.Readonly and COLOUR.text or COLOUR.warning
-    local recording_bg = MOVIE.Readonly and COLOUR.background or COLOUR.warning_bg 
+    local rec_color = MOVIE.readonly and COLOUR.text or COLOUR.warning
+    local recording_bg = MOVIE.readonly and COLOUR.background or COLOUR.warning_bg 
     
     -- Read-only or read-write?
-    local movie_type = MOVIE.Readonly and "Movie " or "REC "
+    local movie_type = MOVIE.readonly and "Movie " or "REC "
     x_text = draw.alert_text(x_text, y_text, movie_type, rec_color, recording_bg)
     
     -- Frame count
     --[[ edit
     local movie_info
-    if MOVIE.Readonly then
-        movie_info = string.format("%d(%d)/%d", MOVIE.last_frame_started_movie, MOVIE.Starting_subframe_last_frame, MOVIE.Framecount) -- edit
+    if MOVIE.readonly then
+        movie_info = string.format("%d(%d)/%d", MOVIE.last_frame_started_movie, MOVIE.Starting_subframe_last_frame, MOVIE.framecount) -- edit
     else
         movie_info = string.format("%d(%d)", MOVIE.last_frame_started_movie, MOVIE.Starting_subframe_last_frame)
     end
@@ -738,8 +739,8 @@ local function show_movie_info()
     --]]
     
     -- Rerecord and lag count
-    x_text = draw.text(x_text, y_text, string.format("|%d ", MOVIE.Rerecords), COLOUR.weak)
-    x_text = draw.text(x_text, y_text, MOVIE.Lagcount, COLOUR.warning)
+    x_text = draw.text(x_text, y_text, string.format("|%d ", MOVIE.rerecords), COLOUR.weak)
+    x_text = draw.text(x_text, y_text, MOVIE.lagcount, COLOUR.warning)
     
     -- Run mode and emulator speed
     local lsnesmode_info
@@ -833,7 +834,7 @@ function LSNES.size_frame(frame)
 end
 
 function LSNES.get_input(subframe)
-    local total = MOVIE.Subframecount or movie.get_size()
+    local total = MOVIE.subframe_count or movie.get_size()
     
     return (subframe <= total and subframe > 0) and movie.get_frame(subframe - 1) or false
 end
@@ -860,8 +861,8 @@ function LSNES.treat_input(input_obj)
 end
 
 function subframe_to_frame(subf)
-    local total_frames = MOVIE.Framecount or movie.count_frames(nil)
-    local total_subframes = MOVIE.Subframecount or movie.get_size(nil)
+    local total_frames = MOVIE.framecount or movie.count_frames(nil)
+    local total_subframes = MOVIE.subframe_count or movie.get_size(nil)
     
     if total_subframes < subf then return total_frames + (subf - total_subframes) --end
     else return movie.subframe_to_frame(subf - 1) end
@@ -880,7 +881,7 @@ function LSNES.display_input()
     -- Font
     draw.Font_name = false
     draw.opacity(1.0, 1.0)
-    local default_color = MOVIE.Readonly and COLOUR.text or 0xffff00
+    local default_color = MOVIE.readonly and COLOUR.text or 0xffff00
     local width  = draw.font_width()
     local height = draw.font_height()
     
@@ -912,6 +913,7 @@ function LSNES.display_input()
             input = LSNES.treat_input(MOVIE.last_input_computed)
             is_delayedinput = true
             color = 0x00ffff
+        elseif false then -- test -- edit
         else
             input = "NULLINPUT"
             is_nullinput = true
@@ -976,7 +978,8 @@ end
 
 local draw = draw
 function on_paint(authentic_paint)
-    gui.solidrectangle(0, 0, 512, 448, 0x10000000)
+    --gui.solidrectangle(0, 0, 512, 448, 0x10000000)  -- delete
+    
     -- Initial values, don't make drawings here
     read_raw_input()
     LSNES.Runmode = gui.get_runmode()
