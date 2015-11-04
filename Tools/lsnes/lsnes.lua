@@ -395,8 +395,8 @@ function LSNES.get_movie_info(authentic_paint)
     
     MOVIE.current_subframe = MOVIE.current_starting_subframe + MOVIE.internal_subframe - 1  -- current subframes being emulated
     MOVIE.size_current_frame = LSNES.size_frame(MOVIE.current_frame)  -- how many subframes of current frames are stored in the movie
-    MOVIE.current_movie_subframe = MOVIE.current_starting_subframe - 1 + 
-        (MOVIE.internal_subframe > MOVIE.size_current_frame and MOVIE.size_current_frame or MOVIE.internal_subframe)
+    MOVIE.current_movie_subframe = MOVIE.current_starting_subframe + 
+        (MOVIE.internal_subframe > MOVIE.size_current_frame and MOVIE.size_current_frame or MOVIE.internal_subframe - 1)
     ; -- for frames with subframes, but not written in the movie
     
     -- TEST INPUT
@@ -423,7 +423,7 @@ function LSNES.debug_movie()
         gui.text(x, y, string.format("%s %s", a, tostring(b)), 'yellow', 'black')
         y = y + 16
     end
-    ---[[
+    --[[
     x = 200
     y = 16
     local colour = {[1] = 0xffff00, [2] = 0x00ff00}
@@ -905,6 +905,7 @@ function LSNES.display_input()
             if not is_startframe then subframe_around = true end
             color = is_startframe and default_color or 0xff
         elseif frame == MOVIE.current_frame then
+            gui.text(0, 0, "frame == MOVIE.current_frame", "red", nil, "black") -- test
             input = LSNES.treat_input(MOVIE.last_input_computed)
             is_delayedinput = true
             color = 0x00ffff
@@ -968,16 +969,13 @@ function LSNES.display_input()
 end
 --]]
 
--- test
 function on_input(subframe)
-    --print("ON_INPUT", subframe, movie.pollcounter(0, 0, 0))
     LSNES.frame_boundary = "middle"
 end
 
 local draw = draw
 function on_paint(authentic_paint)
-    --print("ON PAINT", movie.pollcounter(0, 0, 0))
-    
+    gui.solidrectangle(0, 0, 512, 448, 0x10000000)
     -- Initial values, don't make drawings here
     read_raw_input()
     LSNES.Runmode = gui.get_runmode()
@@ -994,26 +992,17 @@ function on_paint(authentic_paint)
     --draw.text(0, LSNES.Buffer_height - 32, tostringx(CONTROLLER.ports))
     
     LSNES.display_input()
-    --LSNES.debug_movie()
+    LSNES.debug_movie()
     show_movie_info(OPTIONS.display_movie_info)
     
-    gui.text(300, 400, "Garbage " .. collectgarbage("count"), "purple", "orange", "magenta") -- remove
+    gui.text(2, 432, string.format("Garbage %.0fkB", collectgarbage("count")), "orange", nil, "black") -- remove
 end
-
-
-function on_video()
-    LSNES.Video_callback = true
-    -- main_paint_function(false, false) -- remove
-    LSNES.Video_callback = false
-end
-
 
 -- Loading a state
 function on_pre_load(...)
     print("PRE LOAD", ...)
-    LSNES.frame_boundary = "start" --false -- TEST
+    LSNES.frame_boundary = "start"
     LSNES.Is_lagged = false
-    
 end
 
 function on_post_load(...)
@@ -1022,20 +1011,13 @@ end
 
 -- Functions called on specific events
 function on_readwrite()
-    --MOVIE = false
-    
     gui.repaint()
 end
 
-
 -- Rewind functions
 function on_rewind()
-    print"ON REWIND"
     LSNES.frame_boundary = "start"
-    
-    --gui.repaint()
 end
-
 
 function on_movie_lost(kind)
     print("ON MOVIE LOST", kind)
@@ -1050,6 +1032,5 @@ function on_movie_lost(kind)
     end
     
 end
-
 
 gui.repaint()
