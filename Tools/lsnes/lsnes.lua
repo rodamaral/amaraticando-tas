@@ -304,6 +304,7 @@ function LSNES.get_rom_info()
     print"> Read rom info"
 end
 
+
 function LSNES.get_controller_info()
     local info = CONTROLLER
     
@@ -346,7 +347,7 @@ function LSNES.get_controller_info()
         end
     end
     
-    ---[[ debug
+    --[[ debug
     for a,b in pairs(info) do
         if type(b) == "table" then
             print(a, tostring(b))
@@ -362,10 +363,10 @@ function LSNES.get_controller_info()
     print"> Read controller info"
 end
 
+
 -- Get initial frame boudary state: -- EDIT
 LSNES.frame_boundary = movie.pollcounter(0, 0, 0) ~= 0 and "middle" or "start"  -- test / hack
 -- cannot be "end" in a repaint, only in authentic paints. When script starts, it should never be authentic
-
 function LSNES.get_movie_info(authentic_paint)
     LSNES.pollcounter = movie.pollcounter(0, 0, 0)
     
@@ -408,6 +409,7 @@ function LSNES.get_movie_info(authentic_paint)
     -- TEST INPUT
     MOVIE.last_input_computed = LSNES.get_input(MOVIE.subframe_count)
 end
+
 
 function LSNES.debug_movie()
     local x, y = 150, 100
@@ -457,6 +459,7 @@ function LSNES.debug_movie()
     end
     --]]
 end
+
 
 function LSNES.get_screen_info()
     LSNES.left_gap = LSNES.left_gap or OPTIONS.left_gap  -- Lateral gaps TODO: why did I write this?
@@ -652,6 +655,7 @@ function draw.pixel(x, y, color, shadow)
     end
 end
 
+
 -- draws a line given (x,y) and (x',y') with given scale and SNES' pixel thickness
 function draw.line(x1, y1, x2, y2, color)
     x1, y1, x2, y2 = x1*LSNES.AR_x, y1*LSNES.AR_y, x2*LSNES.AR_x, y2*LSNES.AR_y
@@ -766,88 +770,10 @@ local function show_movie_info()
 end
 
 
-
---#############################################################################
--- CUSTOM CALLBACKS --
-
-
-local function is_new_rom()
-    Previous.rom = LSNES.rom_hash
-    
-    if not movie.rom_loaded() then
-        LSNES.rom_hash = "NULL ROM"
-    else LSNES.rom_hash = movie.get_rom_info()[1].sha256
-    end
-    
-    return Previous.rom == LSNES.rom
-end
-
-
-local function on_new_rom()
-    if not is_new_rom() then return end
-    
-    LSNES.get_rom_info()
-    print"NEW ROM FAGGOTS"
-end
-
-
---#############################################################################
--- MAIN --
-
-
-LSNES.subframe_update = false
-gui.subframe_update(LSNES.subframe_update)  -- TODO: this should be true when paused or in heavy slowdown -- EDIT
-
-
--- KEYHOOK callback
-on_keyhook = Keys.altkeyhook
-
--- Key presses:
-Keys.registerkeypress(OPTIONS.hotkey_increase_opacity, function() draw.increase_opacity() end)
-Keys.registerkeypress(OPTIONS.hotkey_decrease_opacity, function() draw.decrease_opacity() end)
-
-LSNES.left_click = function()
-    print"left_click"
-    
-    frame = LSNES.frame
-    port = LSNES.port
-    controller = LSNES.controller
-    button = LSNES.button
-    if frame and port and controller and button then
-        local INPUTFRAME = LSNES.get_input(frame)
-        local status = INPUTFRAME:get_button(port, controller, button)
-        INPUTFRAME:set_button(port, controller, button, not status)
-        LSNES.set_input(frame, INPUTFRAME)
-        
-        print(frame, port, controller, button, status)
-    end
-end
-Keys.registerkeypress("mouse_left", function() LSNES.left_click(); gui.repaint() end)
-
-Keys.registerkeypress("period", function()
-    LSNES.subframe_update = not LSNES.subframe_update
-    gui.subframe_update(LSNES.subframe_update)
-    gui.repaint()
-end)
-
-
-function on_frame_emulated()
-    LSNES.Is_lagged = memory.get_lag_flag()
-    LSNES.frame_boundary = "end"
-end
-
-function on_frame()
-    LSNES.frame_boundary = "start"
-    if not movie.rom_loaded() then  -- only useful with null ROM
-        gui.repaint()
-    end
-end
-
-
----[[test
 function LSNES.size_frame(frame)
     return frame > 0 and movie.frame_subframes(frame) or -1
 end
+
 
 function LSNES.get_input(subframe)
     local total = MOVIE.subframe_count or movie.get_size()
@@ -855,14 +781,21 @@ function LSNES.get_input(subframe)
     return (subframe <= total and subframe > 0) and movie.get_frame(subframe - 1) or false
 end
 
+
 function LSNES.set_input(subframe, data)
     local total = MOVIE.subframe_count or movie.get_size()
     local current_subframe = MOVIE.current_subframe
     
     if subframe <= total and subframe > current_subframe then
         movie.set_frame(subframe - 1, data)
+    --[[
+    elseif subframe == current_subframe then
+        local lcid = 
+        input.joyset(lcid, )
+    --]]
     end
 end
+
 
 function LSNES.treat_input(input_obj)
     local presses = {}
@@ -882,6 +815,7 @@ function LSNES.treat_input(input_obj)
     return table.concat(presses)
 end
 
+
 function subframe_to_frame(subf)
     local total_frames = MOVIE.framecount or movie.count_frames(nil)
     local total_subframes = MOVIE.subframe_count or movie.get_size(nil)
@@ -889,7 +823,6 @@ function subframe_to_frame(subf)
     if total_subframes < subf then return total_frames + (subf - total_subframes) --end
     else return movie.subframe_to_frame(subf - 1) end
 end
---]]
 
 
 -- Colour schemes:
@@ -1002,13 +935,74 @@ function LSNES.display_input()
         return MOVIE.current_subframe + y_button, CONTROLLER.button_array[x_button].port, CONTROLLER.button_array[x_button].controller, CONTROLLER.button_array[x_button].button
     end
 end
---]]
+
+
+LSNES.left_click = function()
+    print"left_click" -- delete
+    
+    frame = LSNES.frame
+    port = LSNES.port
+    controller = LSNES.controller
+    button = LSNES.button
+    if frame and port and controller and button then
+        local INPUTFRAME = LSNES.get_input(frame)
+        if not INPUTFRAME then return end
+        
+        local status = INPUTFRAME:get_button(port, controller, button)
+        INPUTFRAME:set_button(port, controller, button, not status)
+        LSNES.set_input(frame, INPUTFRAME)
+        
+        print(frame, port, controller, button, status) -- delete
+    end
+end
+
+
+--#############################################################################
+-- CUSTOM CALLBACKS --
+
+
+local function is_new_rom()
+    Previous.rom = LSNES.rom_hash
+    
+    if not movie.rom_loaded() then
+        LSNES.rom_hash = "NULL ROM"
+    else LSNES.rom_hash = movie.get_rom_info()[1].sha256
+    end
+    
+    return Previous.rom == LSNES.rom
+end
+
+
+local function on_new_rom()
+    if not is_new_rom() then return end
+    
+    LSNES.get_rom_info()
+    print"NEW ROM FAGGOTS"
+end
+
+
+--#############################################################################
+-- MAIN --
+
+
+function on_frame_emulated()
+    LSNES.Is_lagged = memory.get_lag_flag()
+    LSNES.frame_boundary = "end"
+end
+
+function on_frame()
+    LSNES.frame_boundary = "start"
+    if not movie.rom_loaded() then  -- only useful with null ROM
+        gui.repaint()
+    end
+end
+
 
 function on_input(subframe)
     LSNES.frame_boundary = "middle"
 end
 
-local draw = draw
+
 function on_paint(authentic_paint)
     gui.solidrectangle(0, 0, 512, 448, 0x20000000)  -- delete
     
@@ -1034,6 +1028,7 @@ function on_paint(authentic_paint)
     gui.text(2, 432, string.format("Garbage %.0fkB", collectgarbage("count")), "orange", nil, "black") -- remove
 end
 
+
 -- Loading a state
 function on_pre_load(...)
     print("PRE LOAD", ...)
@@ -1041,19 +1036,23 @@ function on_pre_load(...)
     LSNES.Is_lagged = false
 end
 
+
 function on_post_load(...)
     print("POST LOAD", ...)
 end
+
 
 -- Functions called on specific events
 function on_readwrite()
     gui.repaint()
 end
 
+
 -- Rewind functions
 function on_rewind()
     LSNES.frame_boundary = "start"
 end
+
 
 function on_movie_lost(kind)
     print("ON MOVIE LOST", kind)
@@ -1069,10 +1068,31 @@ function on_movie_lost(kind)
     
 end
 
-set_idle_timeout(1000000//30)
+
 function on_idle()
     if User_input.mouse_inwindow == 1 then gui.repaint() end
     set_idle_timeout(1000000//30)
 end
 
+
+--#############################################################################
+-- ON START --
+
+LSNES.subframe_update = false
+gui.subframe_update(LSNES.subframe_update)  -- TODO: this should be true when paused or in heavy slowdown -- EDIT
+
+-- KEYHOOK callback
+on_keyhook = Keys.altkeyhook
+
+-- Key presses:
+Keys.registerkeypress(OPTIONS.hotkey_increase_opacity, function() draw.increase_opacity() end)
+Keys.registerkeypress(OPTIONS.hotkey_decrease_opacity, function() draw.decrease_opacity() end)
+Keys.registerkeypress("mouse_left", function() LSNES.left_click(); gui.repaint() end)
+Keys.registerkeypress("period", function()
+    LSNES.subframe_update = not LSNES.subframe_update
+    gui.subframe_update(LSNES.subframe_update)
+    gui.repaint()
+end)
+
+set_idle_timeout(1000000//30)
 gui.repaint()
