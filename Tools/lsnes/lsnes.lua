@@ -370,7 +370,7 @@ function LSNES.get_movie_info(authentic_paint)
     LSNES.pollcounter = movie.pollcounter(0, 0, 0)
     
     -- DEBUG
-    if LSNES.frame_boundary ~= "middle" and gui.get_runmode() == "pause_break" then error"Frame boundary: middle case not accounted!" end
+    if LSNES.frame_boundary ~= "middle" and LSNES.Runmode == "pause_break" then error"Frame boundary: middle case not accounted!" end
     
     MOVIE.readonly = movie.readonly()
     MOVIE.framecount = movie.framecount()
@@ -829,15 +829,11 @@ end)
 
 
 function on_frame_emulated()
-    --print("FRAME EMULATED", movie.pollcounter(0,0,0))
-    
     LSNES.Is_lagged = memory.get_lag_flag()
     LSNES.frame_boundary = "end"
 end
 
 function on_frame()
-    --print("ON FRAME", movie.pollcounter(0,0,0))
-    
     LSNES.frame_boundary = "start"
     if not movie.rom_loaded() then  -- only useful with null ROM
         gui.repaint()
@@ -869,9 +865,6 @@ function LSNES.treat_input(input_obj)
                 index = index + 1
             end
         end
-        
-        --presses[index] = "|"  -- test
-        --index = index + 1
     end
     
     return table.concat(presses)
@@ -988,11 +981,12 @@ function LSNES.display_input()
     gui.subframe_update(LSNES.subframe_update)
     
     -- Button settings
-    local x_button = 1 + (User_input.mouse_x - x_base)//width
-    local y_button = (User_input.mouse_y - (y_base + LSNES.Buffer_middle_y))//height
+    local x_button = (User_input.mouse_x - x_base)//width
+    local y_button = (User_input.mouse_y - (y_base + LSNES.Buffer_middle_y))//height - 1
     gui.text(0, 100, string.format("%d %d", x_button, y_button), "red", "black")
+    gui.solidrectangle(8*(User_input.mouse_x//8), 16*(User_input.mouse_y//16), 8, 16, 0xc000ff00)
     
-    if CONTROLLER.button_array[x_button] then
+    if CONTROLLER.button_array[x_button] and LSNES.Runmode == "pause" then
         return MOVIE.current_subframe + y_button, CONTROLLER.button_array[x_button].port, CONTROLLER.button_array[x_button].controller, CONTROLLER.button_array[x_button].button
     end
 end
@@ -1004,7 +998,7 @@ end
 
 local draw = draw
 function on_paint(authentic_paint)
-    --gui.solidrectangle(0, 0, 512, 448, 0x10000000)  -- delete
+    gui.solidrectangle(0, 0, 512, 448, 0x20000000)  -- delete
     
     -- Initial values, don't make drawings here
     read_raw_input()
