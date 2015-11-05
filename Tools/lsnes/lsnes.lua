@@ -738,15 +738,13 @@ local function show_movie_info()
     x_text = draw.alert_text(x_text, y_text, movie_type, rec_color, recording_bg)
     
     -- Frame count
-    --[[ edit
     local movie_info
     if MOVIE.readonly then
-        movie_info = string.format("%d(%d)/%d", MOVIE.last_frame_started_movie, MOVIE.Starting_subframe_last_frame, MOVIE.framecount) -- edit
+        movie_info = string.format("%d/%d", MOVIE.last_frame_started_movie, MOVIE.framecount)
     else
-        movie_info = string.format("%d(%d)", MOVIE.last_frame_started_movie, MOVIE.Starting_subframe_last_frame)
+        movie_info = MOVIE.last_frame_started_movie
     end
     x_text = draw.text(x_text, y_text, movie_info)  -- Shows the latest frame emulated, not the frame being run now
-    --]]
     
     -- Rerecord and lag count
     x_text = draw.text(x_text, y_text, string.format("|%d ", MOVIE.rerecords), COLOUR.weak)
@@ -932,7 +930,7 @@ function LSNES.display_input()
     -- Button settings
     local x_button = (User_input.mouse_x - x_base)//width
     local y_button = (User_input.mouse_y - (y_base + LSNES.Buffer_middle_y))//height
-    gui.solidrectangle(width*(User_input.mouse_x//width), height*(User_input.mouse_y//height), width, height, 0xa000ff00)
+    gui.solidrectangle(width*(User_input.mouse_x//width), height*(User_input.mouse_y//height), width, height, 0xa0ffffff)
     
     -- Debug
     if SCRIPT_DEBUG_INFO then
@@ -940,8 +938,13 @@ function LSNES.display_input()
     end
     --------
     
-    if CONTROLLER.button_array[x_button] and LSNES.Runmode == "pause" then
-        return MOVIE.current_subframe + y_button, CONTROLLER.button_array[x_button].port, CONTROLLER.button_array[x_button].controller, CONTROLLER.button_array[x_button].button
+    x_button = x_button + 1  -- FIX IT
+    local tab = CONTROLLER.button_array[x_button]
+    if tab and LSNES.Runmode == "pause" then
+        if SCRIPT_DEBUG_INFO then
+            print(MOVIE.current_subframe + y_button, CONTROLLER.button_array[x_button].port, CONTROLLER.button_array[x_button].controller, CONTROLLER.button_array[x_button].button)
+        end
+        return MOVIE.current_subframe + y_button, tab.port, tab.controller, tab.button - 1  -- FIX IT, hack to edit 'B' button
     end
 end
 
@@ -1096,6 +1099,7 @@ gui.subframe_update(LSNES.subframe_update)  -- TODO: this should be true when pa
 on_keyhook = Keys.altkeyhook
 
 -- Key presses:
+Keys.registerkeypress("mouse_inwindow", gui.repaint)
 Keys.registerkeypress(OPTIONS.hotkey_increase_opacity, function() draw.increase_opacity() end)
 Keys.registerkeypress(OPTIONS.hotkey_decrease_opacity, function() draw.decrease_opacity() end)
 Keys.registerkeypress("mouse_left", function() LSNES.left_click(); gui.repaint() end)
