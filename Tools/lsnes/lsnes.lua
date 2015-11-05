@@ -58,6 +58,7 @@ CUSTOM_FONTS = {
 
 -- Others
 local INPUT_RAW_VALUE = "value"  -- name of the inner field in input.raw() for values
+local SCRIPT_DEBUG_INFO = false
 
 
 -- END OF CONFIG < < < < < < <
@@ -347,18 +348,21 @@ function LSNES.get_controller_info()
         end
     end
     
-    --[[ debug
-    for a,b in pairs(info) do
-        if type(b) == "table" then
-            print(a, tostring(b))
-            for c,d in pairs(b) do
-                print(">", c, d)
+    -- debug
+    if SCRIPT_DEBUG_INFO then
+        for a,b in pairs(info) do
+            if type(b) == "table" then
+                print(a, tostring(b))
+                for c,d in pairs(b) do
+                    print(">", c, d)
+                end
+            else
+                print(a,b)
             end
-        else
-            print(a,b)
         end
     end
-    --]]
+    --------
+    
     info.info_loaded = true
     print"> Read controller info"
 end
@@ -367,7 +371,7 @@ end
 -- Get initial frame boudary state: -- EDIT
 LSNES.frame_boundary = movie.pollcounter(0, 0, 0) ~= 0 and "middle" or "start"  -- test / hack
 -- cannot be "end" in a repaint, only in authentic paints. When script starts, it should never be authentic
-function LSNES.get_movie_info(authentic_paint)
+function LSNES.get_movie_info()
     LSNES.pollcounter = movie.pollcounter(0, 0, 0)
     
     -- DEBUG
@@ -927,9 +931,14 @@ function LSNES.display_input()
     
     -- Button settings
     local x_button = (User_input.mouse_x - x_base)//width
-    local y_button = (User_input.mouse_y - (y_base + LSNES.Buffer_middle_y))//height -- 1
-    gui.text(0, 100, string.format("%d %d", x_button, y_button), "red", "black")
+    local y_button = (User_input.mouse_y - (y_base + LSNES.Buffer_middle_y))//height
     gui.solidrectangle(width*(User_input.mouse_x//width), height*(User_input.mouse_y//height), width, height, 0xa000ff00)
+    
+    -- Debug
+    if SCRIPT_DEBUG_INFO then
+        gui.text(0, 100, string.format("%d %d", x_button, y_button), "red", "black")
+    end
+    --------
     
     if CONTROLLER.button_array[x_button] and LSNES.Runmode == "pause" then
         return MOVIE.current_subframe + y_button, CONTROLLER.button_array[x_button].port, CONTROLLER.button_array[x_button].controller, CONTROLLER.button_array[x_button].button
@@ -938,7 +947,7 @@ end
 
 
 LSNES.left_click = function()
-    print"left_click" -- delete
+    if SCRIPT_DEBUG_INFO then print"left_click" end -- delete
     
     frame = LSNES.frame
     port = LSNES.port
@@ -952,7 +961,9 @@ LSNES.left_click = function()
         INPUTFRAME:set_button(port, controller, button, not status)
         LSNES.set_input(frame, INPUTFRAME)
         
-        print(frame, port, controller, button, status) -- delete
+        if SCRIPT_DEBUG_INFO then
+            print(frame, port, controller, button, status) -- delete
+        end
     end
 end
 
@@ -1004,7 +1015,7 @@ end
 
 
 function on_paint(authentic_paint)
-    gui.solidrectangle(0, 0, 512, 448, 0x20000000)  -- delete
+    if SCRIPT_DEBUG_INFO then gui.solidrectangle(0, 0, 512, 448, 0x20000000) end  -- delete
     
     -- Initial values, don't make drawings here
     read_raw_input()
@@ -1013,7 +1024,7 @@ function on_paint(authentic_paint)
     
     if not ROM_INFO.info_loaded then LSNES.get_rom_info() end
     if not CONTROLLER.info_loaded then LSNES.get_controller_info() end
-    LSNES.get_movie_info(authentic_paint)
+    LSNES.get_movie_info()
     LSNES.left_gap = 8*CONTROLLER.total_buttons + 6*8 -- TEST
     LSNES.get_screen_info()
     create_gaps()
@@ -1022,23 +1033,23 @@ function on_paint(authentic_paint)
     --draw.text(0, LSNES.Buffer_height - 32, tostringx(CONTROLLER.ports))
     
     LSNES.frame, LSNES.port, LSNES.controller, LSNES.button = LSNES.display_input()  -- test
-    LSNES.debug_movie()
+    if SCRIPT_DEBUG_INFO then LSNES.debug_movie() end
     show_movie_info(OPTIONS.display_movie_info)
     
-    gui.text(2, 432, string.format("Garbage %.0fkB", collectgarbage("count")), "orange", nil, "black") -- remove
+    if SCRIPT_DEBUG_INFO then gui.text(2, 432, string.format("Garbage %.0fkB", collectgarbage("count")), "orange", nil, "black") end -- remove
 end
 
 
 -- Loading a state
 function on_pre_load(...)
-    print("PRE LOAD", ...)
+    if SCRIPT_DEBUG_INFO then print("PRE LOAD", ...) end
     LSNES.frame_boundary = "start"
     LSNES.Is_lagged = false
 end
 
 
 function on_post_load(...)
-    print("POST LOAD", ...)
+    if SCRIPT_DEBUG_INFO then print("POST LOAD", ...) end
 end
 
 
@@ -1055,7 +1066,7 @@ end
 
 
 function on_movie_lost(kind)
-    print("ON MOVIE LOST", kind)
+    if SCRIPT_DEBUG_INFO then print("ON MOVIE LOST", kind) end
     
     if kind == "reload" then  -- just before reloading the ROM in rec mode or closing/loading new ROM
         ROM_INFO.info_loaded = false
