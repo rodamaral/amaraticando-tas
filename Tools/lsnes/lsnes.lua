@@ -311,6 +311,7 @@ function LSNES.get_controller_info()
     info.num_ports = 0
     info.total_buttons = 0
     info.total_controllers = 0
+    info.button_array = {} -- TEST
     
     for port = 0, 2 do  -- SNES
         info.ports[port] = input.port_type(port)
@@ -332,6 +333,7 @@ function LSNES.get_controller_info()
             info[lcid].symbols = {}
             for button, inner in ipairs(ci.buttons) do
                 info[lcid].symbols[button] = inner.symbol
+                info.button_array[#info.button_array + 1] = {port = port, controller = controller, button = button} -- TEST
                 --print(button, inner.symbol)
             end
             
@@ -344,7 +346,7 @@ function LSNES.get_controller_info()
         end
     end
     
-    --[[ debug
+    ---[[ debug
     for a,b in pairs(info) do
         if type(b) == "table" then
             print(a, tostring(b))
@@ -803,6 +805,21 @@ on_keyhook = Keys.altkeyhook
 -- Key presses:
 Keys.registerkeypress(OPTIONS.hotkey_increase_opacity, function() draw.increase_opacity() end)
 Keys.registerkeypress(OPTIONS.hotkey_decrease_opacity, function() draw.decrease_opacity() end)
+
+LSNES.left_click = function(frame, port, controller, button)
+    print"left_click"
+    
+    if frame and port and controller and button then
+        local INPUTFRAME = movie.get_frame(frame)
+        local status = INPUTFRAME:get_button(port, controller, button)
+        INPUTFRAME:set_button(port, controller, button, not status)
+        movie.set_frame(frame, INPUTFRAME)
+        
+        print(frame, port, controller, button, status)
+    end
+end
+Keys.registerkeypress("mouse_left", function() LSNES.left_click_status = true; gui.repaint() end)
+
 Keys.registerkeypress("period", function()
     print"pressed period"
     LSNES.subframe_update = not LSNES.subframe_update
@@ -894,7 +911,7 @@ function LSNES.display_input()
     
     -- Grid drawing
     gui.rectangle(x_text, LSNES.Buffer_height//2, grid_width + 1, height + 1, 1, 0xff0000, 0xa0ff0000)
-    gui.rectangle(x_base, y_base, grid_width + 1, grid_height + 1, 1, "magenta") -- test
+    gui.rectangle(x_base, y_base, grid_width + 1, grid_height + 1, 1, "magenta")
     local total_previous_button = 0
     for line = 1, CONTROLLER.total_controllers, 1 do
         if line == CONTROLLER.total_controllers then break end
@@ -919,7 +936,7 @@ function LSNES.display_input()
             if not is_startframe then subframe_around = true end
             color = is_startframe and default_color or 0xff
         elseif frame == MOVIE.current_frame then
-            gui.text(0, 0, "frame == MOVIE.current_frame", "red", nil, "black") -- test
+            gui.text(0, 0, "frame == MOVIE.current_frame", "red", nil, "black") -- test -- delete
             input = LSNES.treat_input(MOVIE.last_input_computed)
             is_delayedinput = true
             color = 0x00ffff
@@ -970,7 +987,14 @@ function LSNES.display_input()
     LSNES.subframe_update = subframe_around
     gui.subframe_update(LSNES.subframe_update)
     
-    return x_base + width*CONTROLLER.total_buttons + User_input.mouse_x, y_base + height*CONTROLLER.total_buttons + User_input.mouse_x
+    -- Button settings
+    local x_button = 1 + (User_input.mouse_x - x_base)//width
+    local y_button = (User_input.mouse_y - (y_base + LSNES.Buffer_middle_y))//height
+    gui.text(0, 100, string.format("%d %d", x_button, y_button), "red", "black")
+    
+    if CONTROLLER.button_array[x_button] then
+        return MOVIE.current_subframe + y_button, CONTROLLER.button_array[x_button].port, CONTROLLER.button_array[x_button].controller, CONTROLLER.button_array[x_button].button
+    end
 end
 --]]
 
@@ -997,8 +1021,12 @@ function on_paint(authentic_paint)
     if not authentic_paint then gui.text(-8, -16, "*") end
     --draw.text(0, LSNES.Buffer_height - 32, tostringx(CONTROLLER.ports))
     
-    local x, y = LSNES.display_input()
-    gui.text(40, 40, x .. ", " .. y)
+    local frame, port, controller, button = LSNES.display_input()  -- test
+    if LSNES.left_click_status then
+        LSNES.left_click(frame, port, controller, button)
+        LSNES.left_click_status = false
+    end
+    gui.text(40, 40, string.format("%s: %s, %s, %s", tostring(frame), tostring(port), tostring(controller), tostring(button)))
     --LSNES.debug_movie()
     show_movie_info(OPTIONS.display_movie_info)
     
