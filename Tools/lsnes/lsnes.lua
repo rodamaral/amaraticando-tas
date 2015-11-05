@@ -813,11 +813,11 @@ LSNES.left_click = function()
     port = LSNES.port
     controller = LSNES.controller
     button = LSNES.button
-    if frame and frame >= MOVIE.current_subframe and port and controller and button then
-        local INPUTFRAME = movie.get_frame(frame)
+    if frame and port and controller and button then
+        local INPUTFRAME = LSNES.get_input(frame)
         local status = INPUTFRAME:get_button(port, controller, button)
         INPUTFRAME:set_button(port, controller, button, not status)
-        movie.set_frame(frame, INPUTFRAME)
+        LSNES.set_input(frame, INPUTFRAME)
         
         print(frame, port, controller, button, status)
     end
@@ -825,7 +825,6 @@ end
 Keys.registerkeypress("mouse_left", function() LSNES.left_click(); gui.repaint() end)
 
 Keys.registerkeypress("period", function()
-    print"pressed period"
     LSNES.subframe_update = not LSNES.subframe_update
     gui.subframe_update(LSNES.subframe_update)
     gui.repaint()
@@ -854,6 +853,15 @@ function LSNES.get_input(subframe)
     local total = MOVIE.subframe_count or movie.get_size()
     
     return (subframe <= total and subframe > 0) and movie.get_frame(subframe - 1) or false
+end
+
+function LSNES.set_input(subframe, data)
+    local total = MOVIE.subframe_count or movie.get_size()
+    local current_subframe = MOVIE.current_subframe
+    
+    if subframe <= total and subframe > current_subframe then
+        movie.set_frame(subframe - 1, data)
+    end
 end
 
 function LSNES.treat_input(input_obj)
@@ -986,9 +994,9 @@ function LSNES.display_input()
     
     -- Button settings
     local x_button = (User_input.mouse_x - x_base)//width
-    local y_button = (User_input.mouse_y - (y_base + LSNES.Buffer_middle_y))//height - 1
+    local y_button = (User_input.mouse_y - (y_base + LSNES.Buffer_middle_y))//height -- 1
     gui.text(0, 100, string.format("%d %d", x_button, y_button), "red", "black")
-    gui.solidrectangle(8*(User_input.mouse_x//8), 16*(User_input.mouse_y//16), 8, 16, 0xc000ff00)
+    gui.solidrectangle(width*(User_input.mouse_x//width), height*(User_input.mouse_y//height), width, height, 0xa000ff00)
     
     if CONTROLLER.button_array[x_button] and LSNES.Runmode == "pause" then
         return MOVIE.current_subframe + y_button, CONTROLLER.button_array[x_button].port, CONTROLLER.button_array[x_button].controller, CONTROLLER.button_array[x_button].button
