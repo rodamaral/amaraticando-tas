@@ -806,10 +806,14 @@ on_keyhook = Keys.altkeyhook
 Keys.registerkeypress(OPTIONS.hotkey_increase_opacity, function() draw.increase_opacity() end)
 Keys.registerkeypress(OPTIONS.hotkey_decrease_opacity, function() draw.decrease_opacity() end)
 
-LSNES.left_click = function(frame, port, controller, button)
+LSNES.left_click = function()
     print"left_click"
     
-    if frame and port and controller and button then
+    frame = LSNES.frame
+    port = LSNES.port
+    controller = LSNES.controller
+    button = LSNES.button
+    if frame and frame >= MOVIE.current_subframe and port and controller and button then
         local INPUTFRAME = movie.get_frame(frame)
         local status = INPUTFRAME:get_button(port, controller, button)
         INPUTFRAME:set_button(port, controller, button, not status)
@@ -818,7 +822,7 @@ LSNES.left_click = function(frame, port, controller, button)
         print(frame, port, controller, button, status)
     end
 end
-Keys.registerkeypress("mouse_left", function() LSNES.left_click_status = true; gui.repaint() end)
+Keys.registerkeypress("mouse_left", function() LSNES.left_click(); gui.repaint() end)
 
 Keys.registerkeypress("period", function()
     print"pressed period"
@@ -1015,13 +1019,8 @@ function on_paint(authentic_paint)
     if not authentic_paint then gui.text(-8, -16, "*") end
     --draw.text(0, LSNES.Buffer_height - 32, tostringx(CONTROLLER.ports))
     
-    local frame, port, controller, button = LSNES.display_input()  -- test
-    if LSNES.left_click_status then
-        LSNES.left_click(frame, port, controller, button)
-        LSNES.left_click_status = false
-    end
-    gui.text(40, 40, string.format("%s: %s, %s, %s", tostring(frame), tostring(port), tostring(controller), tostring(button)))
-    --LSNES.debug_movie()
+    LSNES.frame, LSNES.port, LSNES.controller, LSNES.button = LSNES.display_input()  -- test
+    LSNES.debug_movie()
     show_movie_info(OPTIONS.display_movie_info)
     
     gui.text(2, 432, string.format("Garbage %.0fkB", collectgarbage("count")), "orange", nil, "black") -- remove
@@ -1060,6 +1059,12 @@ function on_movie_lost(kind)
         
     end
     
+end
+
+set_idle_timeout(1000000//30)
+function on_idle()
+    if User_input.mouse_inwindow == 1 then gui.repaint() end
+    set_idle_timeout(1000000//30)
 end
 
 gui.repaint()
