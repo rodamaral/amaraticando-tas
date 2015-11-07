@@ -952,20 +952,21 @@ end
 LSNES.left_click = function()
     if SCRIPT_DEBUG_INFO then print"left_click" end -- delete
     
-    frame = LSNES.frame
+    subframe = LSNES.frame
     port = LSNES.port
     controller = LSNES.controller
     button = LSNES.button
-    if frame and port and controller and button then
-        local INPUTFRAME = LSNES.get_input(frame)
+    if subframe and port and controller and button then
+        local INPUTFRAME = LSNES.get_input(subframe)
         if not INPUTFRAME then return end
         
         local status = INPUTFRAME:get_button(port, controller, button)
-        INPUTFRAME:set_button(port, controller, button, not status)
-        LSNES.set_input(frame, INPUTFRAME)
+        if subframe <= MOVIE.subframe_count and subframe >= MOVIE.current_subframe then
+            movie.edit(subframe - 1, port, controller, button, not status)  -- 0-based
+        end
         
         if SCRIPT_DEBUG_INFO then
-            print(frame, port, controller, button, status) -- delete
+            print(subframe, port, controller, button, status) -- delete
         end
     end
 end
