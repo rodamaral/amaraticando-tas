@@ -9,8 +9,7 @@ local OPTIONS = {
     
     -- Script settings
     use_custom_fonts = true,
-    display_all_controllers = true,
-    display_controller_mode = "all",
+    use_movie_editor_tool = true,
     
     -- Lateral gaps (initial values)
     left_gap = 40*8 + 2,
@@ -34,6 +33,7 @@ local COLOUR = {
     warning2 = 0xff00ff,
     weak = 0x00a9a9a9,
     very_weak = 0xa0ffffff,
+    button_text = 0x00300030,
 }
 
 -- TODO: make them global later, to export the module
@@ -314,6 +314,7 @@ function LSNES.get_controller_info()
     info.total_buttons = 0
     info.total_controllers = 0
     info.button_array = {} -- TEST
+    local complete_input_sequence = "" -- TEST
     
     for port = 0, 2 do  -- SNES
         info.ports[port] = input.port_type(port)
@@ -321,7 +322,7 @@ function LSNES.get_controller_info()
         info.num_ports = info.num_ports + 1
     end
     
-    for lcid = 0, 7 do
+    for lcid = 1, 8 do
         local port, controller = input.lcid_to_pcid2(lcid)
         local ci = (port and controller) and input.controller_info(port, controller) or nil
         local symbols = {}
@@ -333,8 +334,10 @@ function LSNES.get_controller_info()
             info[lcid].classnum = ci.classnum
             info[lcid].button_count = ci.button_count
             info[lcid].symbols = {}
+            info[lcid].symbol_sequence = ""  -- TEST
             for button, inner in ipairs(ci.buttons) do
                 info[lcid].symbols[button] = inner.symbol
+                info[lcid].symbol_sequence = info[lcid].symbol_sequence .. inner.symbol  -- TEST
                 info.button_array[#info.button_array + 1] = {port = port, controller = controller, button = button} -- TEST
                 --print(button, inner.symbol)
             end
@@ -342,11 +345,13 @@ function LSNES.get_controller_info()
             -- Some
             info.total_buttons = info.total_buttons + ci.button_count
             info.total_controllers = info.total_controllers + 1
+            complete_input_sequence = complete_input_sequence .. info[lcid].symbol_sequence -- TEST
             
         elseif lcid > 0 then
             break
         end
     end
+    info.complete_input_sequence = complete_input_sequence
     
     -- debug
     if SCRIPT_DEBUG_INFO then
@@ -635,6 +640,52 @@ local function draw_over_text(x, y, value, base, color_base, color_value, color_
 end
 
 
+-- displays a button everytime in (x,y)
+-- object can be a text or a dbitmap
+-- if user clicks onto it, fn is executed once
+draw.buttons_table = {}
+function draw.button(x, y, object, fn, extra_options)
+    local always_on_client, always_on_game, ref_x, ref_y, button_pressed
+    if extra_options then
+        always_on_client, always_on_game, ref_x, ref_y, button_pressed = extra_options.always_on_client, extra_options.always_on_game,
+                                                                extra_options.ref_x, extra_options.ref_y, extra_options.button_pressed
+    end
+    
+    local width, height
+    local object_type = type(object)
+    
+    if object_type == "string" then
+        width, height = draw.font_width(), draw.font_height()
+        x, y, width = draw.text_position(x, y, object, width, height, always_on_client, always_on_game, ref_x, ref_y)
+    elseif object_type == "userdata" then  -- lsnes specific
+        width, height = object:size()
+        x, y = draw.text_position(x, y, nil, width, height, always_on_client, always_on_game, ref_x, ref_y)
+    elseif object_type == "boolean" then
+        width, height = LSNES_FONT_WIDTH, LSNES_FONT_HEIGHT
+        x, y = draw.text_position(x, y, nil, width, height, always_on_client, always_on_game, ref_x, ref_y)
+    else error"Type of buttton not supported yet"
+    end
+    
+    -- draw the button
+    if button_pressed then
+        gui.box(x, y, width, height, 1, 0x808080, 0xffffff, 0xe0e0e0) -- unlisted colour
+    else
+        gui.box(x, y, width, height, 1)
+    end
+    
+    if object_type == "string" then
+        draw.text(x, y, object, COLOUR.button_text, -1, -1)  -- EDIT
+    elseif object_type == "userdata" then
+        object:draw(x, y)
+    elseif object_type == "boolean" then
+        gui.solidrectangle(x +1, y + 1, width - 2, height - 2, 0x00ff00)  -- unlisted colour
+    end
+    
+    -- updates the table of buttons
+    table.insert(draw.buttons_table, {x = x, y = y, width = width, height = height, object = object, action = fn})
+end
+
+
 -- Returns frames-time conversion
 local function frame_time(frame)
     if not ROM_INFO.info_loaded or not ROM_INFO.is_loaded then return "no time" end
@@ -802,15 +853,14 @@ end
 function LSNES.treat_input(input_obj)
     local presses = {}
     local index = 1
-    local number_controls = OPTIONS.display_all_controllers and CONTROLLER.total_controllers or 1
+    local number_controls = CONTROLLER.total_controllers
     for lcid = 1, number_controls do
         local port, cnum = input.lcid_to_pcid2(lcid)
         
-        if true or cnum <= 1 then  -- test: display only 2 pads per port
-            for control = 1, CONTROLLER[lcid].button_count do
-                presses[index] = input_obj:get_button(port, cnum, control-1) and CONTROLLER[lcid].symbols[control] or "."  -- test
-                index = index + 1
-            end
+        -- Currently shows all ports and controllers
+        for control = 1, CONTROLLER[lcid].button_count do
+            presses[index] = input_obj:get_button(port, cnum, control-1) and CONTROLLER[lcid].symbols[control] or " "  -- test
+            index = index + 1
         end
     end
     
@@ -887,6 +937,7 @@ function LSNES.display_input()
             color = 0xff8080
         end
         
+        draw.text(x_text, y_text, CONTROLLER.complete_input_sequence, 0xc0ffffff, -1, -1)
         draw.text(x_text, y_text, frame, color, nil, nil, false, false, 1, 0)
         draw.text(x_text, y_text, input, color)
         
@@ -915,6 +966,7 @@ function LSNES.display_input()
             end
         end
         
+        draw.text(x_text, y_text, CONTROLLER.complete_input_sequence, 0xc0ffffff, -1, -1)
         draw.text(x_text, y_text, frame, color, nil, nil, false, false, 1, 0)
         draw.text(x_text, y_text, input, color)
         y_text = y_text + height
@@ -942,16 +994,17 @@ function LSNES.display_input()
     local tab = CONTROLLER.button_array[x_button]
     if tab and LSNES.Runmode == "pause" then
         if SCRIPT_DEBUG_INFO then
-            print(MOVIE.current_subframe + y_button, CONTROLLER.button_array[x_button].port, CONTROLLER.button_array[x_button].controller, CONTROLLER.button_array[x_button].button)
+            --print(MOVIE.current_subframe + y_button, CONTROLLER.button_array[x_button].port, CONTROLLER.button_array[x_button].controller, CONTROLLER.button_array[x_button].button)
         end
         return MOVIE.current_subframe + y_button, tab.port, tab.controller, tab.button - 1  -- FIX IT, hack to edit 'B' button
     end
 end
 
 
-LSNES.left_click = function()
+function LSNES.left_click()
     if SCRIPT_DEBUG_INFO then print"left_click" end -- delete
     
+    -- Movie Editor
     subframe = LSNES.frame
     port = LSNES.port
     controller = LSNES.controller
@@ -967,6 +1020,15 @@ LSNES.left_click = function()
         
         if SCRIPT_DEBUG_INFO then
             print(subframe, port, controller, button, status) -- delete
+        end
+    end
+    
+    -- Script buttons
+    for _, field in ipairs(draw.buttons_table) do
+        -- if mouse is over the button
+        if mouse_onregion(field.x, field.y, field.x + field.width, field.y + field.height) then
+                field.action()
+                return
         end
     end
 end
@@ -1019,7 +1081,7 @@ end
 
 
 function on_paint(authentic_paint)
-    if SCRIPT_DEBUG_INFO then gui.solidrectangle(0, 0, 512, 448, 0x20000000) end  -- delete
+    --if SCRIPT_DEBUG_INFO then gui.solidrectangle(0, 0, 512, 448, 0x20000000) end  -- delete
     
     -- Initial values, don't make drawings here
     read_raw_input()
@@ -1036,9 +1098,17 @@ function on_paint(authentic_paint)
     if not authentic_paint then gui.text(-8, -16, "*") end
     --draw.text(0, LSNES.Buffer_height - 32, tostringx(CONTROLLER.ports))
     
-    LSNES.frame, LSNES.port, LSNES.controller, LSNES.button = LSNES.display_input()  -- test
+    if OPTIONS.use_movie_editor_tool then
+        LSNES.frame, LSNES.port, LSNES.controller, LSNES.button = LSNES.display_input()  -- test: fix names
+    end
     if SCRIPT_DEBUG_INFO then LSNES.debug_movie() end
     show_movie_info(OPTIONS.display_movie_info)
+    
+    -- TEST
+    -- Input button
+    draw.button(0, 0, OPTIONS.use_movie_editor_tool and "Hide Input" or "Show Input", function()
+        OPTIONS.use_movie_editor_tool = not OPTIONS.use_movie_editor_tool
+    end, {always_on_client = true, ref_x = 1.0, ref_y = 1.0})
     
     if SCRIPT_DEBUG_INFO then gui.text(2, 432, string.format("Garbage %.0fkB", collectgarbage("count")), "orange", nil, "black") end -- remove
 end
