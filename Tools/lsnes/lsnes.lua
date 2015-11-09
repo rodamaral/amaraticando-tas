@@ -123,6 +123,7 @@ end
 -- Variables used in various functions
 local Previous = {}
 local User_input = {}
+local Movie_editor_renderctx
 
 
 -- unsigned to signed (based in <bits> bits)
@@ -351,7 +352,15 @@ function LSNES.get_controller_info()
             break
         end
     end
+    
+    -- Length of movie editor
     info.complete_input_sequence = complete_input_sequence
+    Movie_editor_renderctx = gui.renderctx.new(LSNES.FONT_WIDTH*info.total_buttons, 448)  -- edit height
+    Movie_editor_renderctx:set()
+    for y = 0, 448//16 - 1 do
+        gui.text(-LSNES.FONT_WIDTH*info.total_buttons, 16*y, complete_input_sequence, 0xc0ffffff)
+    end
+    gui.renderctx.setnull()
     
     -- debug
     if SCRIPT_DEBUG_INFO then
@@ -885,6 +894,10 @@ end
 -- cyan: delayed subframe input that will be saved but wasn't yet (lsnes bug)
 -- green: "Unrecorded" message
 function LSNES.display_input()
+    
+    -- TEST
+    Movie_editor_renderctx:run()
+    
     -- Font
     draw.Font_name = false
     draw.opacity(1.0, 1.0)
@@ -915,7 +928,7 @@ function LSNES.display_input()
     local subframe = MOVIE.current_subframe
     local frame = MOVIE.frame_of_past_subframe -- frame corresponding to subframe-1
     
-    for subframe_id = subframe - 1, subframe - past_inputs_number + 1, -1 do
+    for subframe_id = subframe - 1, subframe - past_inputs_number, -1 do
         if subframe_id <= 0 then break end
         
         local is_nullinput, is_startframe, is_delayedinput
@@ -937,7 +950,7 @@ function LSNES.display_input()
             color = 0xff8080
         end
         
-        draw.text(x_text, y_text, CONTROLLER.complete_input_sequence, 0xc0ffffff, -1, -1)
+        --draw.text(x_text, y_text, CONTROLLER.complete_input_sequence, 0xc0ffffff, -1, -1)
         draw.text(x_text, y_text, frame, color, nil, nil, false, false, 1, 0)
         draw.text(x_text, y_text, input, color)
         
@@ -966,7 +979,7 @@ function LSNES.display_input()
             end
         end
         
-        draw.text(x_text, y_text, CONTROLLER.complete_input_sequence, 0xc0ffffff, -1, -1)
+        --draw.text(x_text, y_text, CONTROLLER.complete_input_sequence, 0xc0ffffff, -1, -1)
         draw.text(x_text, y_text, frame, color, nil, nil, false, false, 1, 0)
         draw.text(x_text, y_text, input, color)
         y_text = y_text + height
