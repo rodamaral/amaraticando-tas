@@ -353,6 +353,7 @@ function LSNES.get_controller_info()
         end
     end
     
+    ---------------------------
     -- Length of movie editor
     info.complete_input_sequence = complete_input_sequence
     Movie_editor_renderctx = gui.renderctx.new(LSNES.FONT_WIDTH*info.total_buttons, 448)  -- edit height
@@ -360,7 +361,30 @@ function LSNES.get_controller_info()
     for y = 0, 448//16 - 1 do
         gui.text(-LSNES.FONT_WIDTH*info.total_buttons, 16*y, complete_input_sequence, 0xc0ffffff)
     end
+    
+    -- Font
+    local width  = draw.font_width()
+    local height = draw.font_height()
+    
+    -- Input grid settings
+    local x_base, y_base = -8*CONTROLLER.total_buttons, 0  -- test
+    local grid_width, grid_height = width*CONTROLLER.total_buttons, LSNES.Buffer_height
+    local x_text, y_text = x_base, y_base + LSNES.Buffer_middle_y - height
+    local past_inputs_number = grid_height//(2*height)
+    local future_inputs_number = grid_height//height - past_inputs_number
+    
+    -- Grid drawing
+    gui.rectangle(x_text, LSNES.Buffer_height//2, grid_width + 1, height + 1, 1, 0xff0000, 0xa0ff0000)
+    gui.rectangle(x_base, y_base, grid_width + 1, grid_height + 1, 1, "magenta")
+    local total_previous_button = 0
+    for line = 1, CONTROLLER.total_controllers, 1 do
+        if line == CONTROLLER.total_controllers then break end
+        total_previous_button = total_previous_button + CONTROLLER[line].button_count
+        gui.line(x_base + width*total_previous_button, y_base, x_base + width*total_previous_button, LSNES.Buffer_height, 0x00ff00)
+    end
+    
     gui.renderctx.setnull()
+    --------------------------
     
     -- debug
     if SCRIPT_DEBUG_INFO then
@@ -912,7 +936,7 @@ function LSNES.display_input()
     local past_inputs_number = grid_height//(2*height)
     local future_inputs_number = grid_height//height - past_inputs_number
     
-    -- Grid drawing
+    --[[ Grid drawing
     gui.rectangle(x_text, LSNES.Buffer_height//2, grid_width + 1, height + 1, 1, 0xff0000, 0xa0ff0000)
     gui.rectangle(x_base, y_base, grid_width + 1, grid_height + 1, 1, "magenta")
     local total_previous_button = 0
@@ -921,6 +945,7 @@ function LSNES.display_input()
         total_previous_button = total_previous_button + CONTROLLER[line].button_count
         gui.line(x_base + width*total_previous_button, y_base, x_base + width*total_previous_button, LSNES.Buffer_height, 0x00ff00)
     end
+    --]]
     
     -- Extra settings
     local color, subframe_around = nil, false
@@ -1101,11 +1126,11 @@ function on_paint(authentic_paint)
     LSNES.Runmode = gui.get_runmode()
     LSNES.Lsnes_speed = settings.get_speed()
     
+    LSNES.get_screen_info()
     if not ROM_INFO.info_loaded then LSNES.get_rom_info() end
     if not CONTROLLER.info_loaded then LSNES.get_controller_info() end
     LSNES.get_movie_info()
     LSNES.left_gap = 8*CONTROLLER.total_buttons + 6*8 -- TEST
-    LSNES.get_screen_info()
     create_gaps()
     
     if not authentic_paint then gui.text(-8, -16, "*") end
