@@ -1140,9 +1140,11 @@ function on_paint(authentic_paint)
     
     -- TEST
     -- Input button
-    draw.button(0, 0, OPTIONS.use_movie_editor_tool and "Hide Input" or "Show Input", function()
-        OPTIONS.use_movie_editor_tool = not OPTIONS.use_movie_editor_tool
-    end, {always_on_client = true, ref_x = 1.0, ref_y = 1.0})
+    if User_input.mouse_inwindow == 1 then
+        draw.button(0, 0, OPTIONS.use_movie_editor_tool and "Hide Input" or "Show Input", function()
+            OPTIONS.use_movie_editor_tool = not OPTIONS.use_movie_editor_tool
+        end, {always_on_client = true, ref_x = 1.0, ref_y = 1.0})
+    end
     
     if SCRIPT_DEBUG_INFO then gui.text(2, 432, string.format("Garbage %.0fkB", collectgarbage("count")), "orange", nil, "black") end -- remove
 end
