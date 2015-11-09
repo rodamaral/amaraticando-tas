@@ -374,8 +374,8 @@ function LSNES.get_controller_info()
     local future_inputs_number = grid_height//height - past_inputs_number
     
     -- Grid drawing
-    gui.rectangle(x_text, LSNES.Buffer_height//2, grid_width + 1, height + 1, 1, 0xff0000, 0xa0ff0000)
-    gui.rectangle(x_base, y_base, grid_width + 1, grid_height + 1, 1, "magenta")
+    gui.rectangle(x_text, LSNES.Buffer_height//2, grid_width, height, 1, 0xff0000, 0xa0ff0000)
+    gui.rectangle(x_base, y_base, grid_width, grid_height, 1, "magenta")
     local total_previous_button = 0
     for line = 1, CONTROLLER.total_controllers, 1 do
         if line == CONTROLLER.total_controllers then break end
@@ -918,16 +918,13 @@ end
 -- cyan: delayed subframe input that will be saved but wasn't yet (lsnes bug)
 -- green: "Unrecorded" message
 function LSNES.display_input()
-    
     -- TEST
-    Movie_editor_renderctx:run()
+    Movie_editor_renderctx:run()  -- draw the background and grid
     
     -- Font
-    draw.Font_name = false
-    draw.opacity(1.0, 1.0)
     local default_color = MOVIE.readonly and COLOUR.text or 0xffff00
-    local width  = draw.font_width()
-    local height = draw.font_height()
+    local width  = LSNES.FONT_WIDTH
+    local height = LSNES.FONT_HEIGHT
     
     -- Input grid settings
     local x_base, y_base = -8*CONTROLLER.total_buttons, 0  -- test
@@ -936,22 +933,13 @@ function LSNES.display_input()
     local past_inputs_number = grid_height//(2*height)
     local future_inputs_number = grid_height//height - past_inputs_number
     
-    --[[ Grid drawing
-    gui.rectangle(x_text, LSNES.Buffer_height//2, grid_width + 1, height + 1, 1, 0xff0000, 0xa0ff0000)
-    gui.rectangle(x_base, y_base, grid_width + 1, grid_height + 1, 1, "magenta")
-    local total_previous_button = 0
-    for line = 1, CONTROLLER.total_controllers, 1 do
-        if line == CONTROLLER.total_controllers then break end
-        total_previous_button = total_previous_button + CONTROLLER[line].button_count
-        gui.line(x_base + width*total_previous_button, y_base, x_base + width*total_previous_button, LSNES.Buffer_height, 0x00ff00)
-    end
-    --]]
-    
     -- Extra settings
     local color, subframe_around = nil, false
     local input
     local subframe = MOVIE.current_subframe
     local frame = MOVIE.frame_of_past_subframe -- frame corresponding to subframe-1
+    local length_frame_string = #tostringx(subframe + future_inputs_number - 1)
+    local x_frame = x_text - length_frame_string*width - 2
     
     for subframe_id = subframe - 1, subframe - past_inputs_number, -1 do
         if subframe_id <= 0 then break end
@@ -968,16 +956,14 @@ function LSNES.display_input()
             input = LSNES.treat_input(MOVIE.last_input_computed)
             is_delayedinput = true
             color = 0x00ffff
-        elseif false then -- test -- edit
         else
             input = "NULLINPUT"
             is_nullinput = true
             color = 0xff8080
         end
         
-        --draw.text(x_text, y_text, CONTROLLER.complete_input_sequence, 0xc0ffffff, -1, -1)
-        draw.text(x_text, y_text, frame, color, nil, nil, false, false, 1, 0)
-        draw.text(x_text, y_text, input, color)
+        gui.text(x_frame, y_text, frame, color, nil, COLOUR.halo)
+        gui.text(x_text, y_text, input, color)
         
         if is_startframe or is_nullinput then
             frame = frame - 1
@@ -1004,14 +990,12 @@ function LSNES.display_input()
             end
         end
         
-        --draw.text(x_text, y_text, CONTROLLER.complete_input_sequence, 0xc0ffffff, -1, -1)
-        draw.text(x_text, y_text, frame, color, nil, nil, false, false, 1, 0)
-        draw.text(x_text, y_text, input, color)
+        gui.text(x_frame, y_text, frame, color, nil, COLOUR.halo)
+        gui.text(x_text, y_text, input, color)
         y_text = y_text + height
         
         if not raw_input then break end
     end
-    
     
     -- TEST -- edit
     LSNES.subframe_update = subframe_around
