@@ -311,23 +311,22 @@ function LSNES.get_controller_info()
     local info = CONTROLLER
     
     info.ports = {}
-    info.num_ports = 0
-    info.total_buttons = 0
+    info.total_ports = 0
     info.total_controllers = 0
-    info.total_width = 0
-    info.button_array = {} -- TEST
-    local complete_input_sequence = "" -- TEST
+    info.total_buttons = 0
+    info.complete_input_sequence = ""  -- the sequence of buttons/axis for background in the movie editor
+    info.total_width = 0  -- how many horizontal cells are necessary to draw the complete input
+    info.button_pcid = {}  -- array that maps the n-th button of the sequence to its port/controller/button index
     
     for port = 0, 2 do  -- SNES
         info.ports[port] = input.port_type(port)
         if not info.ports[port] then break end
-        info.num_ports = info.num_ports + 1
+        info.total_ports = info.total_ports + 1
     end
     
-    for lcid = 1, 8 do
+    for lcid = 1, 8 do  -- SNES
         local port, controller = input.lcid_to_pcid2(lcid)
         local ci = (port and controller) and input.controller_info(port, controller) or nil
-        local symbols = {}
         
         if ci then
             info[lcid] = {port = port, controller = controller}
@@ -335,45 +334,64 @@ function LSNES.get_controller_info()
             info[lcid].class = ci.class
             info[lcid].classnum = ci.classnum
             info[lcid].button_count = ci.button_count
-            info[lcid].symbols = {}
-            info[lcid].symbol_sequence = ""  -- TEST
-            local button_width = 0 -- TEST
-            for button, inner in ipairs(ci.buttons) do
-                info[lcid].symbols[button] = inner.symbol
-                button_width = button_width + (inner.symbol and 1 or 1)  -- TODO: or 7
+            info[lcid].symbol_sequence = ""
+            info[lcid].controller_width = 0
+            
+            for button, inner in pairs(ci.buttons) do
+                -- button level
+                info[lcid][button] = {}
+                info[lcid][button].type = inner.type
+                info[lcid][button].name = inner.name
+                info[lcid][button].symbol= inner.symbol
+                info[lcid][button].hidden = inner.hidden
+                info[lcid][button].button_width = inner.symbol and 1 or 1  -- TODO: 'or 7' for axis
+                
+                -- controller level
+                info[lcid].controller_width = info[lcid].controller_width + info[lcid][button].button_width
                 info[lcid].symbol_sequence = info[lcid].symbol_sequence .. (inner.symbol or " ")  -- TODO: axis: 7 spaces
-                info.button_array[#info.button_array + 1] = {port = port, controller = controller, button = button} -- TEST
-                --print(button, inner.symbol)
+                
+                -- port level (nothing)
+                
+                -- input level
+                info.button_pcid[#info.button_pcid + 1] = {port = port, controller = controller, button = button}
             end
             
-            -- Some
-            info.total_buttons = info.total_buttons + ci.button_count
+            -- input level
+            info.total_buttons = info.total_buttons + info[lcid].button_count
             info.total_controllers = info.total_controllers + 1
-            info.controller_width = button_width
-            info.total_width = info.total_width + info.controller_width
-            complete_input_sequence = complete_input_sequence .. info[lcid].symbol_sequence -- TEST
+            info.total_width = info.total_width + info[lcid].controller_width
+            info.complete_input_sequence = info.complete_input_sequence .. info[lcid].symbol_sequence
             
-        elseif lcid > 0 then  -- TODO: break anyway
-            break
+        else break
         end
     end
-    info.complete_input_sequence = complete_input_sequence
     
-    -- debug
+    -- debug info
     if SCRIPT_DEBUG_INFO then
-        for lcid = 1, 8 do
+        print" - - - - CONTROLLER debug info: - - - - "
+        print"Ports:"
+        print("total = " .. info.total_ports)
+        for a,b in pairs(info.ports) do
+            print("", a, b)
+        end
+        
+        print("Controllers:")
+        print("total = " .. info.total_controllers)
+        for lcid = 1, info.total_controllers do
             local tb = info[lcid]
-                print(lcid, ":")
-                if type(tb) == "table" then
-                    for c,d in pairs(tb) do
-                        print("", c, d)
-                    end
-                else
-                    print("", tb)
-                end
+            print("", lcid .. " :")
+            print("", "", "pcid: " .. tb.port .. ", " .. tb.controller)
+            print("", "", string.format("class: %s #%d, type: %s", tb.class, tb.classnum, tb.type))
+            print("", "", string.format("%d buttons: %s (%d cells)", tb.button_count, tb.symbol_sequence, tb.controller_width))
+        end
+        
+        print("Some input utilities:")
+        print("", string.format("%d buttons, forming: %s", info.total_buttons, info.complete_input_sequence))
+        print("Individual button mapping:")
+        for a,b in ipairs(info.button_pcid) do
+            print("", string.format("%d -> %d, %d, %d", a, b.port, b.controller, b.button))
         end
     end
-    --------
     
     info.info_loaded = true
     print"> Read controller info"
@@ -870,7 +888,7 @@ function LSNES.treat_input(input_obj)
             local button_value, str
             if is_gamepad or control > 2 then  -- only the first 2 buttons can be axis
                 button_value = input_obj:get_button(port, cnum, control-1)
-                str = button_value and CONTROLLER[lcid].symbols[control] or " "
+                str = button_value and CONTROLLER[lcid][control].symbol or " "
             else
                 str = control == 1 and "x" or "y"  -- TODO: should display the whole number for axis
                 --[[
@@ -1028,10 +1046,10 @@ function LSNES.display_input()
     --------
     
     x_button = x_button + 1  -- FIX IT
-    local tab = CONTROLLER.button_array[x_button]
+    local tab = CONTROLLER.button_pcid[x_button]
     if tab and LSNES.Runmode == "pause" then
         if SCRIPT_DEBUG_INFO then
-            --print(MOVIE.current_subframe + y_button, CONTROLLER.button_array[x_button].port, CONTROLLER.button_array[x_button].controller, CONTROLLER.button_array[x_button].button)
+            --print(MOVIE.current_subframe + y_button, CONTROLLER.button_pcid[x_button].port, CONTROLLER.button_pcid[x_button].controller, CONTROLLER.button_pcid[x_button].button)
         end
         return MOVIE.current_subframe + y_button, tab.port, tab.controller, tab.button - 1  -- FIX IT, hack to edit 'B' button
     end
