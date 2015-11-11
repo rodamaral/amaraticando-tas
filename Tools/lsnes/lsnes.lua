@@ -383,6 +383,12 @@ function LSNES.get_controller_info()
             print("", "", "pcid: " .. tb.port .. ", " .. tb.controller)
             print("", "", string.format("class: %s #%d, type: %s", tb.class, tb.classnum, tb.type))
             print("", "", string.format("%d buttons: %s (%d cells)", tb.button_count, tb.symbol_sequence, tb.controller_width))
+            
+            print("", "", "Buttons:")
+            for button, inner in ipairs(tb) do
+                print("", "", string.format("%d: %s (%s), cell width: %d , type: %s, hidden: %s",
+                button, inner.name, inner.symbol or "no symbol", inner.button_width, inner.type, inner.hidden))
+            end
         end
         
         print("Some input utilities:")
