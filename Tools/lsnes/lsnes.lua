@@ -338,7 +338,7 @@ function LSNES.get_controller_info()
             info[lcid].symbol_sequence = ""  -- TEST
             for button, inner in ipairs(ci.buttons) do
                 info[lcid].symbols[button] = inner.symbol
-                info[lcid].symbol_sequence = info[lcid].symbol_sequence .. (inner.symbol or ".")  -- TODO: include axes, that don't have a symbol
+                info[lcid].symbol_sequence = info[lcid].symbol_sequence .. (inner.symbol or " ")  -- TODO: include axes, that don't have a symbol
                 info.button_array[#info.button_array + 1] = {port = port, controller = controller, button = button} -- TEST
                 --print(button, inner.symbol)
             end
@@ -356,15 +356,16 @@ function LSNES.get_controller_info()
     
     -- debug
     if SCRIPT_DEBUG_INFO then
-        for a,b in pairs(info) do
-            if type(b) == "table" then
-                print(a, tostring(b))
-                for c,d in pairs(b) do
-                    print(">", c, d)
+        for lcid = 1, 8 do
+            local tb = info[lcid]
+                print(lcid, ":")
+                if type(tb) == "table" then
+                    for c,d in pairs(tb) do
+                        print("", c, d)
+                    end
+                else
+                    print("", tb)
                 end
-            else
-                print(a,b)
-            end
         end
     end
     --------
@@ -856,11 +857,21 @@ function LSNES.treat_input(input_obj)
     local index = 1
     local number_controls = CONTROLLER.total_controllers
     for lcid = 1, number_controls do
-        local port, cnum = input.lcid_to_pcid2(lcid)
+        local port, cnum = CONTROLLER[lcid].port, CONTROLLER[lcid].controller
+        local is_gamepad = CONTROLLER[lcid].class == "gamepad"
         
         -- Currently shows all ports and controllers
         for control = 1, CONTROLLER[lcid].button_count do
-            presses[index] = input_obj:get_button(port, cnum, control-1) and CONTROLLER[lcid].symbols[control] or " "  -- test
+            local button_value, str
+            if is_gamepad or control > 2 then  -- only the first 2 buttons can be axis
+                button_value = input_obj:get_button(port, cnum, control-1)
+                str = button_value and CONTROLLER[lcid].symbols[control] or " "
+            else
+                button_value = input_obj:get_axis(port, cnum, control-1)
+                str = button_value%10  -- FIX: should display the whole number for axis
+            end
+            
+            presses[index] = str
             index = index + 1
         end
     end
@@ -962,7 +973,7 @@ function LSNES.display_input()
         y_text = y_text - height
     end
     
-    y_text = y_present -- LSNES.Buffer_middle_y
+    y_text = y_present
     frame = MOVIE.current_frame
     
     for subframe_id = subframe, subframe + future_inputs_number - 1 do
@@ -1033,6 +1044,21 @@ function LSNES.left_click()
         if not INPUTFRAME then return end
         
         local status = INPUTFRAME:get_button(port, controller, button)
+        --[[
+        local is_gamepad = input.controller_info(port, controller).class == "gamepad"
+        local status
+        if is_gamepad or button >= 2 then  -- only the first 2 buttons can be axis
+            status = INPUTFRAME:get_button(port, controller, button-1)
+        else
+            print"AXXXXIS"
+            status = INPUTFRAME:get_axis(port, controller, button-1)
+        end
+        
+        local new_status
+        if status == true or status == false then new_status = not status else new_status = (status + 1)%256 end
+        print("----", is_gamepad, status, new_status)
+        --]]
+        
         if subframe <= MOVIE.subframe_count and subframe >= MOVIE.current_subframe then
             movie.edit(subframe - 1, port, controller, button, not status)  -- 0-based
         end
@@ -1100,7 +1126,7 @@ end
 
 
 function on_paint(authentic_paint)
-    --if SCRIPT_DEBUG_INFO then gui.solidrectangle(0, 0, 512, 448, 0x20000000) end  -- delete
+    if SCRIPT_DEBUG_INFO then gui.solidrectangle(0, 0, 512, 448, 0x20000000) end  -- delete
     
     -- Initial values, don't make drawings here
     read_raw_input()
