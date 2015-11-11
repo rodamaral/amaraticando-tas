@@ -1019,6 +1019,7 @@ function LSNES.display_input()
                 subframe_around = true
                 color = 0xff
             else
+                if subframe_id ~= MOVIE.current_subframe then frame = frame + 1 end
                 color = 0x00ff00
             end
         end
