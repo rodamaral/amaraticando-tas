@@ -338,7 +338,7 @@ function LSNES.get_controller_info()
             info[lcid].symbol_sequence = ""  -- TEST
             for button, inner in ipairs(ci.buttons) do
                 info[lcid].symbols[button] = inner.symbol
-                info[lcid].symbol_sequence = info[lcid].symbol_sequence .. inner.symbol  -- TEST
+                info[lcid].symbol_sequence = info[lcid].symbol_sequence .. (inner.symbol or ".")  -- TODO: include axes, that don't have a symbol
                 info.button_array[#info.button_array + 1] = {port = port, controller = controller, button = button} -- TEST
                 --print(button, inner.symbol)
             end
@@ -922,6 +922,8 @@ function LSNES.display_input()
     gui.rectangle(x_grid, y_grid, grid_width, grid_height, 1, colour)
     local total_previous_button = 0
     for line = 1, CONTROLLER.total_controllers, 1 do
+        -- fmt("%d:%d", CONTROLLER[line].port, CONTROLLER[line].controller) -> better header?
+        gui.text(x_grid + width*total_previous_button + 1, y_grid, line, colour, nil, COLOUR.halo)
         if line == CONTROLLER.total_controllers then break end
         total_previous_button = total_previous_button + CONTROLLER[line].button_count
         gui.line(x_grid + width*total_previous_button, y_grid, x_grid + width*total_previous_button, grid_height - 1, colour)
