@@ -314,6 +314,7 @@ function LSNES.get_controller_info()
     info.num_ports = 0
     info.total_buttons = 0
     info.total_controllers = 0
+    info.total_width = 0
     info.button_array = {} -- TEST
     local complete_input_sequence = "" -- TEST
     
@@ -336,9 +337,11 @@ function LSNES.get_controller_info()
             info[lcid].button_count = ci.button_count
             info[lcid].symbols = {}
             info[lcid].symbol_sequence = ""  -- TEST
+            local button_width = 0 -- TEST
             for button, inner in ipairs(ci.buttons) do
                 info[lcid].symbols[button] = inner.symbol
-                info[lcid].symbol_sequence = info[lcid].symbol_sequence .. (inner.symbol or " ")  -- TODO: include axes, that don't have a symbol
+                button_width = button_width + (inner.symbol and 1 or 1)  -- TODO: or 7
+                info[lcid].symbol_sequence = info[lcid].symbol_sequence .. (inner.symbol or " ")  -- TODO: axis: 7 spaces
                 info.button_array[#info.button_array + 1] = {port = port, controller = controller, button = button} -- TEST
                 --print(button, inner.symbol)
             end
@@ -346,9 +349,11 @@ function LSNES.get_controller_info()
             -- Some
             info.total_buttons = info.total_buttons + ci.button_count
             info.total_controllers = info.total_controllers + 1
+            info.controller_width = button_width
+            info.total_width = info.total_width + info.controller_width
             complete_input_sequence = complete_input_sequence .. info[lcid].symbol_sequence -- TEST
             
-        elseif lcid > 0 then
+        elseif lcid > 0 then  -- TODO: break anyway
             break
         end
     end
@@ -867,8 +872,10 @@ function LSNES.treat_input(input_obj)
                 button_value = input_obj:get_button(port, cnum, control-1)
                 str = button_value and CONTROLLER[lcid].symbols[control] or " "
             else
-                button_value = input_obj:get_axis(port, cnum, control-1)
-                str = button_value%10  -- FIX: should display the whole number for axis
+                str = control == 1 and "x" or "y"  -- TODO: should display the whole number for axis
+                --[[
+                str = fmt("%+.5d ", input_obj:get_axis(port, cnum, control-1))
+                --]]
             end
             
             presses[index] = str
@@ -903,7 +910,7 @@ function LSNES.display_input()
     local height = LSNES.FONT_HEIGHT
     
     -- Input grid settings
-    local grid_width, grid_height = width*CONTROLLER.total_buttons, LSNES.Buffer_height
+    local grid_width, grid_height = width*CONTROLLER.total_width, LSNES.Buffer_height
     local x_grid, y_grid = - grid_width, 0
     local grid_subframe_slots = grid_height//height - 1  -- discount the header
     grid_height = (grid_subframe_slots + 1)*height  -- if grid_height is not a multiple of height, cut it
@@ -1009,7 +1016,7 @@ function LSNES.display_input()
     -- Button settings
     local x_button = (User_input.mouse_x - x_grid)//width
     local y_button = (User_input.mouse_y - (y_grid + y_present))//height
-    if x_button >= 0 and x_button < CONTROLLER.total_buttons and
+    if x_button >= 0 and x_button < CONTROLLER.total_width and
     y_button >= 0 and y_button <= last_subframe_grid - subframe then
         gui.solidrectangle(width*(User_input.mouse_x//width), height*(User_input.mouse_y//height), width, height, 0xb000ff00)
     end
@@ -1137,7 +1144,7 @@ function on_paint(authentic_paint)
     if not ROM_INFO.info_loaded then LSNES.get_rom_info() end
     if not CONTROLLER.info_loaded then LSNES.get_controller_info() end
     LSNES.get_movie_info()
-    LSNES.left_gap = 8*CONTROLLER.total_buttons + 6*8 -- TEST
+    LSNES.left_gap = LSNES.FONT_WIDTH*(CONTROLLER.total_width + 6) -- TEST
     create_gaps()
     
     if not authentic_paint then gui.text(-8, -16, "*") end
