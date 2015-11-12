@@ -1146,9 +1146,6 @@ end
 
 function on_frame()
     LSNES.frame_boundary = "start"
-    if not movie.rom_loaded() then  -- only useful with null ROM
-        gui.repaint()
-    end
 end
 
 
@@ -1158,8 +1155,6 @@ end
 
 
 function on_paint(authentic_paint)
-    if SCRIPT_DEBUG_INFO then gui.solidrectangle(0, 0, 512, 448, 0x20000000) end  -- delete
-    
     -- Initial values, don't make drawings here
     read_raw_input()
     LSNES.Runmode = gui.get_runmode()
@@ -1222,6 +1217,7 @@ function on_movie_lost(kind)
     if SCRIPT_DEBUG_INFO then print("ON MOVIE LOST", kind) end
     
     if kind == "reload" then  -- just before reloading the ROM in rec mode or closing/loading new ROM
+        LSNES.frame_boundary = "start"
         ROM_INFO.info_loaded = false
         CONTROLLER.info_loaded = false
         
