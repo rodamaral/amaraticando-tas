@@ -12,8 +12,8 @@ local OPTIONS = {
     use_movie_editor_tool = true,
     
     -- Lateral gaps (initial values)
-    left_gap = 40*8 + 2,
-    right_gap = 32,
+    left_gap = 128,
+    right_gap = 8,
     top_gap = 20,
     bottom_gap = 8,
 }
@@ -502,20 +502,23 @@ end
 
 
 function LSNES.get_screen_info()
-    LSNES.left_gap = LSNES.left_gap or OPTIONS.left_gap  -- Lateral gaps TODO: why did I write this?
+    -- Effective script gaps
+    LSNES.left_gap = math.max(OPTIONS.left_gap, LSNES.FONT_WIDTH*(CONTROLLER.total_width + 6)) -- for movie editor
     LSNES.right_gap = LSNES.right_gap or OPTIONS.right_gap
     LSNES.top_gap = LSNES.top_gap or OPTIONS.top_gap
     LSNES.bottom_gap = LSNES.bottom_gap or OPTIONS.bottom_gap
     
-    LSNES.Padding_left = tonumber(settings.get("left-border"))  -- Advanced configuration: padding dimensions
+    -- Advanced configuration: padding dimensions
+    LSNES.Padding_left = tonumber(settings.get("left-border"))
     LSNES.Padding_right = tonumber(settings.get("right-border"))
     LSNES.Padding_top = tonumber(settings.get("top-border"))
     LSNES.Padding_bottom = tonumber(settings.get("bottom-border"))
     
-    LSNES.Border_left = math.max(LSNES.Padding_left, LSNES.left_gap)  -- Borders' dimensions
-    LSNES.Border_right = math.max(LSNES.Padding_right, LSNES.right_gap)
-    LSNES.Border_top = math.max(LSNES.Padding_top, LSNES.top_gap)
-    LSNES.Border_bottom = math.max(LSNES.Padding_bottom, LSNES.bottom_gap)
+    -- Borders' dimensions
+    LSNES.Border_left = math.max(LSNES.Padding_left, LSNES.left_gap)  -- for movie editor
+    LSNES.Border_right = math.max(LSNES.Padding_right, OPTIONS.right_gap)
+    LSNES.Border_top = math.max(LSNES.Padding_top, OPTIONS.top_gap)
+    LSNES.Border_bottom = math.max(LSNES.Padding_bottom, OPTIONS.bottom_gap)
     
     LSNES.Buffer_width, LSNES.Buffer_height = gui.resolution()  -- Game area
     if LSNES.Video_callback then  -- The video callback messes with the resolution
@@ -1160,11 +1163,10 @@ function on_paint(authentic_paint)
     LSNES.Runmode = gui.get_runmode()
     LSNES.Lsnes_speed = settings.get_speed()
     
-    LSNES.get_screen_info()
     if not ROM_INFO.info_loaded then LSNES.get_rom_info() end
     if not CONTROLLER.info_loaded then LSNES.get_controller_info() end
+    LSNES.get_screen_info()
     LSNES.get_movie_info()
-    LSNES.left_gap = LSNES.FONT_WIDTH*(CONTROLLER.total_width + 6) -- TEST
     create_gaps()
     
     if not authentic_paint then gui.text(-8, -16, "*") end
