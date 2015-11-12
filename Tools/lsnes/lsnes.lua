@@ -955,7 +955,7 @@ function LSNES.display_input()
     
     -- Draw background
     local complete_input_sequence = CONTROLLER.complete_input_sequence
-    for y = 1, grid_subframe_slots do
+    for y = subframe > past_inputs_number and 1 or past_inputs_number - subframe + 2 , grid_subframe_slots do  -- don't draw for negative frames
         gui.text(x_text, 16*y, complete_input_sequence, 0xc0ffffff)
     end
     -- Draw grid
@@ -1064,7 +1064,7 @@ end
 
 
 function LSNES.left_click()
-    if SCRIPT_DEBUG_INFO then print"left_click" end -- delete
+    if SCRIPT_DEBUG_INFO then print"left_click" end
     
     -- Movie Editor
     subframe = LSNES.frame
