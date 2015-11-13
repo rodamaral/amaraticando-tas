@@ -95,26 +95,6 @@ end
 
 local fmt = string.format
 
--- Compatibility of the memory read/write functions
-local u8  = function(address, value) if value then memory2.WRAM:byte(address, value) else
-    return memory.readbyte("WRAM", address) end
-end
-local s8  = function(address, value) if value then memory2.WRAM:sbyte(address, value) else
-    return memory.readsbyte("WRAM", address) end
-end
-local u16  = function(address, value) if value then memory2.WRAM:word(address, value) else
-    return memory.readword("WRAM", address) end
-end
-local s16  = function(address, value) if value then memory2.WRAM:sword(address, value) else
-    return memory.readsword("WRAM", address) end
-end
-local u24  = function(address, value) if value then memory2.WRAM:hword(address, value) else
-    return memory.readhword("WRAM", address) end
-end
-local s24  = function(address, value) if value then memory2.WRAM:shword(address, value) else
-    return memory.readshword("WRAM", address) end
-end
-
 
 --#############################################################################
 -- SCRIPT UTILITIES:
@@ -123,7 +103,6 @@ end
 -- Variables used in various functions
 local Previous = {}
 local User_input = {}
-local Movie_editor_renderctx
 
 
 -- unsigned to signed (based in <bits> bits)
@@ -404,9 +383,6 @@ function LSNES.get_controller_info()
 end
 
 
--- Get initial frame boudary state: -- EDIT
-LSNES.frame_boundary = movie.pollcounter(0, 0, 0) ~= 0 and "middle" or "start"  -- test / hack
--- cannot be "end" in a repaint, only in authentic paints. When script starts, it should never be authentic
 function LSNES.get_movie_info()
     LSNES.pollcounter = movie.pollcounter(0, 0, 0)
     
@@ -1169,9 +1145,6 @@ function on_paint(authentic_paint)
     LSNES.get_movie_info()
     create_gaps()
     
-    if not authentic_paint then gui.text(-8, -16, "*") end
-    --draw.text(0, LSNES.Buffer_height - 32, tostringx(CONTROLLER.ports))
-    
     if OPTIONS.use_movie_editor_tool then
         LSNES.frame, LSNES.port, LSNES.controller, LSNES.button = LSNES.display_input()  -- test: fix names
     end
@@ -1241,7 +1214,11 @@ end
 -- ON START --
 
 LSNES.subframe_update = false
-gui.subframe_update(LSNES.subframe_update)  -- TODO: this should be true when paused or in heavy slowdown -- EDIT
+gui.subframe_update(LSNES.subframe_update)
+
+-- Get initial frame boudary state:
+-- cannot be "end" in a repaint, only in authentic paints. When script starts, it should never be authentic
+LSNES.frame_boundary = movie.pollcounter(0, 0, 0) ~= 0 and "middle" or "start"
 
 -- KEYHOOK callback
 on_keyhook = Keys.altkeyhook
