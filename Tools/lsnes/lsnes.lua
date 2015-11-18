@@ -1091,30 +1091,6 @@ end
 
 
 --#############################################################################
--- CUSTOM CALLBACKS --
-
-
-local function is_new_rom()
-    Previous.rom = LSNES.rom_hash
-    
-    if not movie.rom_loaded() then
-        LSNES.rom_hash = "NULL ROM"
-    else LSNES.rom_hash = movie.get_rom_info()[1].sha256
-    end
-    
-    return Previous.rom == LSNES.rom
-end
-
-
-local function on_new_rom()
-    if not is_new_rom() then return end
-    
-    LSNES.get_rom_info()
-    print"NEW ROM FAGGOTS"
-end
-
-
---#############################################################################
 -- MAIN --
 
 
@@ -1197,6 +1173,7 @@ function on_movie_lost(kind)
         CONTROLLER.info_loaded = false
         
     elseif kind == "load" then -- this is called just before loading / use on_post_load when needed
+        ROM_INFO.info_loaded = false
         CONTROLLER.info_loaded = false
         
     end
