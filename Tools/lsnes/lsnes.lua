@@ -659,8 +659,8 @@ draw.buttons_table = {}
 function draw.button(x, y, object, fn, extra_options)
     local always_on_client, always_on_game, ref_x, ref_y, button_pressed
     if extra_options then
-        always_on_client, always_on_game, ref_x, ref_y, button_pressed = extra_options.always_on_client, extra_options.always_on_game,
-                                                                extra_options.ref_x, extra_options.ref_y, extra_options.button_pressed
+        always_on_client, always_on_game, ref_x, ref_y, button_pressed = 
+        extra_options.always_on_client, extra_options.always_on_game, extra_options.ref_x, extra_options.ref_y, extra_options.button_pressed
     end
     
     local width, height
@@ -941,8 +941,8 @@ function LSNES.display_input()
     end
     -- Draw grid
     local colour = 0x909090
-    gui.line(x_text, y_present, x_text + grid_width - 1, y_present, 0xff0000) -- test
-    gui.rectangle(x_text, y_present, grid_width, height, 1, 0xffff0000, 0xc0ff0000) --test
+    gui.line(x_text, y_present, x_text + grid_width - 1, y_present, 0xff0000)  -- drawing the bottom base of the rectangle is misleading
+    gui.rectangle(x_text, y_present, grid_width, height, 1, COLOUR.transparency, 0xc0ff0000)  -- users should know where the past ends
     gui.rectangle(x_grid, y_grid, grid_width, grid_height, 1, colour)
     local total_previous_button = 0
     for line = 1, CONTROLLER.total_controllers, 1 do
@@ -1023,28 +1023,28 @@ function LSNES.display_input()
     -- Button settings
     local x_button = (User_input.mouse_x - x_grid)//width
     local y_button = (User_input.mouse_y - (y_grid + y_present))//height
-    if x_button >= 0 and x_button < CONTROLLER.total_width and
-    y_button >= 0 and y_button <= last_subframe_grid - subframe then
+    if x_button >= 0 and x_button < CONTROLLER.total_width and y_button >= 0 and y_button <= last_subframe_grid - subframe then
+        
         gui.solidrectangle(width*(User_input.mouse_x//width), height*(User_input.mouse_y//height), width, height, 0xb000ff00)
-    end
-    
-    -- Debug
-    if SCRIPT_DEBUG_INFO then
-        gui.text(0, 100, string.format("%d %d", x_button, y_button), "red", "black")
-    end
-    --------
-    
-    local tab = CONTROLLER.button_pcid[x_button + 1]  -- index is 1-based
-    if tab and LSNES.Runmode_paused then
-        LSNES.movie_editor_selected_subframe = MOVIE.current_subframe + y_button
-        LSNES.movie_editor_selected_port = tab.port
-        LSNES.movie_editor_selected_controller = tab.controller
-        LSNES.movie_editor_selected_button = tab.button - 1 -- button is 0-based here
+        
+        local tab = CONTROLLER.button_pcid[x_button + 1]  -- index is 1-based
+        if tab and LSNES.Runmode_paused then
+            LSNES.movie_editor_selected_subframe = MOVIE.current_subframe + y_button
+            LSNES.movie_editor_selected_port = tab.port
+            LSNES.movie_editor_selected_controller = tab.controller
+            LSNES.movie_editor_selected_button = tab.button - 1 -- button is 0-based here
+        end
+        
     else
         LSNES.movie_editor_selected_subframe = false
         LSNES.movie_editor_selected_port = false
         LSNES.movie_editor_selected_controller = false
         LSNES.movie_editor_selected_button = false
+    end
+    
+    -- Debug
+    if SCRIPT_DEBUG_INFO then
+        gui.text(0, 100, string.format("%d %d", x_button, y_button), "red", "black")
     end
 end
 
@@ -1053,13 +1053,13 @@ function LSNES.left_click()
     if SCRIPT_DEBUG_INFO then print"left_click" end
     
     -- Movie Editor
-    if OPTIONS.use_movie_editor_tool and LSNES.movie_editor_selected_button then
-        local subframe = LSNES.movie_editor_selected_subframe
+    local subframe = LSNES.movie_editor_selected_subframe
+    local port = LSNES.movie_editor_selected_port
+    local controller = LSNES.movie_editor_selected_controller
+    local button = LSNES.movie_editor_selected_button
+    if OPTIONS.use_movie_editor_tool and subframe and port and controller and button then
         local INPUTFRAME = LSNES.get_input(subframe)
         if INPUTFRAME then
-            local port = LSNES.movie_editor_selected_port
-            local controller = LSNES.movie_editor_selected_controller
-            local button = LSNES.movie_editor_selected_button
             local status = INPUTFRAME:get_button(port, controller, button)
             
             --[[
@@ -1085,7 +1085,7 @@ function LSNES.left_click()
                 print(subframe, port, controller, button, status) -- delete
             end
             
-            return -- necessary?
+            return
         end
     end
     
@@ -1137,9 +1137,9 @@ function on_paint(authentic_paint)
     if SCRIPT_DEBUG_INFO then LSNES.debug_movie() end
     show_movie_info(OPTIONS.display_movie_info)
     
-    -- TEST
-    -- Input button
-    Widgets_context:clear()
+    -- Buttons context
+    Widgets_context:clear() -- reset the buttons' context and table
+    draw.buttons_table = {}
     Widgets_context:set()
     if User_input.mouse_inwindow == 1 and LSNES.Runmode_paused then
         draw.button(LSNES.Buffer_width, - LSNES.Border_top, "Debug Script", function()
