@@ -60,6 +60,7 @@ CUSTOM_FONTS = {
 -- Others
 local INPUT_RAW_VALUE = "value"  -- name of the inner field in input.raw() for values
 local SCRIPT_DEBUG_INFO = false
+local LSNES_PAUSED_RUNMODES = {pause = true, pause_break = true, corrupt = true, unknown = true}
 
 
 -- END OF CONFIG < < < < < < <
@@ -1034,7 +1035,7 @@ function LSNES.display_input()
     --------
     
     local tab = CONTROLLER.button_pcid[x_button + 1]  -- index is 1-based
-    if tab and LSNES.Runmode == "pause" then
+    if tab and LSNES.Runmode_paused then
         LSNES.movie_editor_selected_subframe = MOVIE.current_subframe + y_button
         LSNES.movie_editor_selected_port = tab.port
         LSNES.movie_editor_selected_controller = tab.controller
@@ -1052,7 +1053,7 @@ function LSNES.left_click()
     if SCRIPT_DEBUG_INFO then print"left_click" end
     
     -- Movie Editor
-    if LSNES.use_movie_editor_tool and LSNES.movie_editor_selected_button then
+    if OPTIONS.use_movie_editor_tool and LSNES.movie_editor_selected_button then
         local subframe = LSNES.movie_editor_selected_subframe
         local INPUTFRAME = LSNES.get_input(subframe)
         if INPUTFRAME then
@@ -1122,6 +1123,7 @@ function on_paint(authentic_paint)
     -- Initial values, don't make drawings here
     read_raw_input()
     LSNES.Runmode = gui.get_runmode()
+    LSNES.Runmode_paused = LSNES_PAUSED_RUNMODES[LSNES.Runmode]
     LSNES.Lsnes_speed = settings.get_speed()
     
     if not ROM_INFO.info_loaded then LSNES.get_rom_info() end
@@ -1139,7 +1141,7 @@ function on_paint(authentic_paint)
     -- Input button
     Widgets_context:clear()
     Widgets_context:set()
-    if User_input.mouse_inwindow == 1 then
+    if User_input.mouse_inwindow == 1 and LSNES.Runmode_paused then
         draw.button(LSNES.Buffer_width, - LSNES.Border_top, "Debug Script", function()
             SCRIPT_DEBUG_INFO = not SCRIPT_DEBUG_INFO
         end, {always_on_client = true})
