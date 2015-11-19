@@ -42,6 +42,7 @@ local ROM_INFO = {}
 local CONTROLLER = {}
 local MOVIE = {}
 local draw = {}
+local Widgets_context = gui.renderctx.new(512, 478) -- TEST
 
 -- Font settings
 LSNES.FONT_HEIGHT = 16
@@ -1051,7 +1052,7 @@ function LSNES.left_click()
     if SCRIPT_DEBUG_INFO then print"left_click" end
     
     -- Movie Editor
-    if LSNES.movie_editor_selected_button then
+    if LSNES.use_movie_editor_tool and LSNES.movie_editor_selected_button then
         local subframe = LSNES.movie_editor_selected_subframe
         local INPUTFRAME = LSNES.get_input(subframe)
         if INPUTFRAME then
@@ -1059,6 +1060,7 @@ function LSNES.left_click()
             local controller = LSNES.movie_editor_selected_controller
             local button = LSNES.movie_editor_selected_button
             local status = INPUTFRAME:get_button(port, controller, button)
+            
             --[[
             local is_gamepad = input.controller_info(port, controller).class == "gamepad"
             local status
@@ -1135,11 +1137,19 @@ function on_paint(authentic_paint)
     
     -- TEST
     -- Input button
+    Widgets_context:clear()
+    Widgets_context:set()
     if User_input.mouse_inwindow == 1 then
+        draw.button(LSNES.Buffer_width, - LSNES.Border_top, "Debug Script", function()
+            SCRIPT_DEBUG_INFO = not SCRIPT_DEBUG_INFO
+        end, {always_on_client = true})
+        
         draw.button(0, 0, OPTIONS.use_movie_editor_tool and "Hide Input" or "Show Input", function()
             OPTIONS.use_movie_editor_tool = not OPTIONS.use_movie_editor_tool
         end, {always_on_client = true, ref_x = 1.0, ref_y = 1.0})
     end
+    gui.renderctx.setnull()
+    Widgets_context:run()
     
     if SCRIPT_DEBUG_INFO then gui.text(2, 432, string.format("Garbage %.0fkB", collectgarbage("count")), "orange", nil, "black") end -- remove
 end
