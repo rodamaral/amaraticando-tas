@@ -26,7 +26,7 @@ local floor = math.floor
 local BIZHAWK_FONT_WIDTH = 10
 local BIZHAWK_FONT_HEIGHT = 14
 
-local ram={
+local MainRAM={
 	on_level = 0x0008D447,
 	environment = 0x0008D0FC,
     track = 0x0008D930,
@@ -50,8 +50,9 @@ local racer_name = {
 	[12] = "Dr. N. Tropy",    	[13] = "Penta Penguin",     [14] = "Fake Crash",  	[15] = "Nitros Oxide"
 }
 
+-- Variables
+local Prev = {}
 local Joypad = {}
-
 
 local Movie_active, Readonly, Framecount, Lagcount, Rerecords, Game_region
 local Lastframe_emulated, Starting_subframe_last_frame, Size_last_frame, Final_subframe_last_frame
@@ -147,22 +148,22 @@ local function show_movie_info()
     
     if Movie_active then
         -- Frame count
-        x_text = x_text + width*string.len(movie_type)
+        x_text = x_text + width*#movie_type
         local movie_info
         if Readonly then
-            movie_info = string.format("%d/%d", Lastframe_emulated, Framecount)
+            movie_info = fmt("%d/%d", Lastframe_emulated, Framecount)
         else
-            movie_info = string.format("%d", Lastframe_emulated)
+            movie_info = fmt("%d", Lastframe_emulated)
         end
         draw_text(x_text, y_text, movie_info)  -- Shows the latest frame emulated, not the frame being run now
         
         -- Rerecord count
-        x_text = x_text + width*string.len(movie_info)
-        local rr_info = string.format(" %d ", Rerecords)
+        x_text = x_text + width*#movie_info
+        local rr_info = fmt(" %d ", Rerecords)
         draw_text(x_text, y_text, rr_info, 0x80e0e0e0)
         
         -- Lag count
-        x_text = x_text + width*string.len(rr_info)
+        x_text = x_text + width*#rr_info
         draw_text(x_text, y_text, Lagcount, 0xffff0000)
     end
     
@@ -196,11 +197,47 @@ local function show_joypad()
 end
 
 
-local Prev = {}-- test
+local function other_game_mechanics(address)
+    local x_txt, y_txt, delta_y = Buffer_width, 20, 20
+    
+    -- Read RAM
+    local turboReserves = u16(address + 0x3e2) --
+	local slideTimer = u16(address + 0x3dc) --
+	local jumpTimer = u16(address + 0x3fc)
+	local landing = u8(address + 0x3f0)
+    local wumpa_count = u8(address + 0x30) --
+    local number_position = u8(address + 0x482) + 1 --
+    local timer = u32(address + 0x514) -- new
+    
+	draw_text(x_txt, y_txt, fmt("Turbo %d/32767", turboReserves))
+    y_txt = y_txt + delta_y
+	draw_text(x_txt, y_txt, fmt("Slide: %5d", slideTimer))
+    y_txt = y_txt + delta_y
+	draw_text(x_txt, y_txt, fmt("Jump: %5d", jumpTimer))
+    y_txt = y_txt + delta_y
+	draw_text(x_txt, y_txt, fmt("Land: %3d", landing))
+    y_txt = y_txt + delta_y
+    draw_text(x_txt, y_txt, fmt("Wumpa: %x: %d", address + 0x30, wumpa_count), "orange") -- test
+    y_txt = y_txt + delta_y
+    draw_text(x_txt, y_txt, fmt("Position: %d", number_position), "blue") -- test
+    
+    -- Random shit
+    --[[
+    local estimated_speed = math.max(0, math.sqrt((absSpeed*256+absolute_subspeed)^2 - (256*vertSpeed+vertical_subspeed)^2) - 120)
+    draw_text(68, 65, estimated_speed)-- test
+    
+    gui.text(64, 32, timer, "black", "purple")
+    gui.text(64, 48, s32(address + 0x3a8))
+    gui.text(64, 64, fmt("%x: %d", address + 0x392, zspeed))
+    gui.text(64, 80, moving_direction)
+    gui.text(64, 96, "Ver. Dir. "..vertical_direction)
+    --]]
+end
+
 local function level_mode_info()
-	local environment_number = u8(ram["environment"])
-	local racer_number = u8(ram["character"]) or 0
-	local track_number = u8(ram["track"]) or 0
+	local environment_number = u8(MainRAM["environment"])
+	local racer_number = u8(MainRAM["character"]) or 0
+	local track_number = u8(MainRAM["track"]) or 0
 	
 	if racer_number>=0 and racer_number<=15 then 
 		--gui.text(0, 0, fmt("%s", racer_name[racer_number]))
@@ -217,63 +254,36 @@ local function level_mode_info()
         gui.text(100, 100, "OFFSET OUT OF BOUNDS", 0, 0xff0000)
         return
     end
+    gui.text(0, 0, fmt("$%.6x ", address), "black", "cyan", "bottomright")
+    gui.text(0, 20, "-", nil, nil, "bottomright")
     
-    local absolute_subspeed = u8(address + 0x38c)
+    -- Read RAM
+    local absolute_subspeed = s8(address + 0x38c)
     local absSpeed = u8(address + 0x38d)
-    local horizontal_subspeed = u8(address + 0x38e)
-	local horiSpeed = s8(address + 0x38f)
-    local vertical_subspeed = u8(address + 0x390)
-	local vertSpeed = s8(address + 0x391)
+	local speed_meter = s16(address + 0x38e)
+	local vertical_speed = s16(address + 0x390)
     local zspeed = mainmemory.read_s32_be(address + 0x392) -- TEST
-	local turboReserves = u16(address + 0x3e2) --
-	local slideTimer = u16(address + 0x3dc) --
     local absPos = u8(address + 0x489) --
 	local absSubPos = u8(address + 0x488) --
 	local maxAbsPos = u8(address + 0x48d) --
 	local maxAbsSubPos = u8(address + 0x48c) --
-	local jumpTimer = u16(address + 0x3fc)
-	local landing = u8(address + 0x3f0)
-    local wumpa_count = u8(address + 0x30) --
-    local number_position = u8(address + 0x482) + 1 --
-    local timer = u32(address + 0x514) -- new
+    local horizontal_speed_decrementation = s16(address + 0x3b2)
+    local horizontal_speed = speed_meter - horizontal_speed_decrementation
     
     -- Positions  (from 0xed4 to 0xedf)
-    local x = s32(address + 0x2d4) --
-    local x_pos = floor(x/0x100)
-    local x_subpixel = x%0x100
+    local x = s32(address + 0x2d4)
     local x_speed = s32(address + 0x88)
     local z = s32(address + 0x2d8) --
-    local z_pos = floor(z/0x100)
-    local z_subpixel = z%0x100
     local z_speed = s32(address + 0x8c)
     local y = s32(address + 0x2dc) --
-    local y_pos = floor(y/0x100)
-    local y_subpixel = y%0x100
     local y_speed = s32(address + 0x90)
+    
     -- previous positions from 0xee0 to 0xeeb
-    ---[[
     local x2 = s32(address + 0x2e0) --
-    local x_pos2 = floor(x/0x100)
-    local x_subpixel2 = x%0x100
     local z2 = s32(address + 0x2e4) --
-    local z_pos2 = floor(z/0x100)
-    local z_subpixel2 = z%0x100
     local y2 = s32(address + 0x2e8) --
-    local y_pos2 = floor(y/0x100)
-    local y_subpixel2 = y%0x100
     local deslocamento = math.sqrt((x2-x)^2 + (y2-y)^2 + (z2-z)^2)
     local deslocamento_horizontal = math.sqrt((x2-x)^2 + (y2-y)^2)
-    gui.text(64, 0, fmt("%f, %f", deslocamento/256, deslocamento_horizontal/256), "darkblue", "yellow")
-    
-    --[[
-    Prev.timer = not Prev.timer
-    if Prev.x then gui.text(128, 128, x - Prev.x) end
-    if Prev.y then gui.text(128, 144, y - Prev.y) end
-    if Prev.z then gui.text(128, 158, z - Prev.z) end
-    Prev.x = x
-    Prev.y = y
-    Prev.z = z
-    --]]
     
     -- Direction
     local direction = 0xc00 - s16(address + 0x39a)
@@ -281,78 +291,40 @@ local function level_mode_info()
     local vertical_direction = s16(address + 0x3a0)
     local x_angle = math.sin(moving_direction*math.pi/2048)
     local y_angle = math.cos(moving_direction*math.pi/2048)
-    local combined_speed = 256*absSpeed + absolute_subspeed -- test
-    local horizontal_speed = math.sqrt(combined_speed^2 - (256*vertSpeed+ vertical_subspeed)^2)/256 -- test
     local effective_inclination1 = s8(address + 0x31b)
     local effective_inclination2 = s8(address + 0x33b)
     local speed_inclination = s8(address + 0x94)
     
     -- SPECIAL
-    local x_txt, y_txt, delta_y = 0, Buffer_height - 64, 20
-    -- gui.text(0, 500, fmt("OFFSET %X", address), "black", "magenta")
+    local x_txt, y_txt, delta_y = 0, Buffer_height - 32, 20
 	alert_text(x_txt, y_txt, fmt("Abs. Sp. = %d.%.2x - %d", absSpeed, absolute_subspeed, absSpeed*256+absolute_subspeed), 0xffff0000, 0xff000000)
-    y_txt = y_txt + delta_y
-    --alert_text(x_txt, y_txt, fmt("Hor: %3d.%.2x", horiSpeed, horizontal_subspeed), 0xffff0000, 0xff000000)
     gui.drawBox(0, 200, 8*14, 216, 0x800000ff, 0x800000ff)
-    gui.drawText(0, 200, fmt("Hor: %3d.%.2x", horiSpeed, horizontal_subspeed), 0xffff0000, 16)
-    y_txt = y_txt + delta_y
+    gui.drawText(0, 200, fmt("Hor: %5d", horizontal_speed), 0xffff0000, 16)
     
     -- Positions
     x_txt, y_txt = - Border_left, 64
-    --[[
-    draw_text(10, 64, x.."|"..x2..": "..(x-x2).." vs "..x_speed)
-    draw_text(10, 68, y.."|"..y2..": "..(y-y2).." vs "..y_speed)
-    draw_text(10, 72, z.."|"..z2..": "..(z-z2).." vs "..z_speed)
-    --]]
-    ---[[
-    draw_text(x_txt, y_txt, fmt("X = %d.%.2x", x_pos, x_subpixel))
+    draw_text(x_txt, y_txt, fmt("X = %d (%d)", x, x- x2))
     y_txt = y_txt + delta_y
-    draw_text(x_txt, y_txt, fmt("Y = %d.%.2x [%d.%.2x - %d]", y_pos, y_subpixel, vertSpeed, vertical_subspeed, 256*vertSpeed+vertical_subspeed))
+    draw_text(x_txt, y_txt, fmt("Y = %d (%d)", y, y - y2))
     y_txt = y_txt + delta_y
-    draw_text(x_txt, y_txt, fmt("Z = %d.%.2x", z_pos, z_subpixel))
+    draw_text(x_txt, y_txt, fmt("Z = %d (%d) [%d]", z, z - z2, vertical_speed))
     y_txt = y_txt + delta_y
-    --]]
-    
-    draw_text(x_txt, y_txt, fmt("Dir: %d (%f, %f)", direction, 256*horizontal_speed*x_angle, 256*horizontal_speed*y_angle), "red")
-    y_txt = y_txt + delta_y
-    gui.text(x_txt, y_txt, horizontal_speed, "blue") --
+    draw_text(x_txt, y_txt, fmt("%f, %f", deslocamento, deslocamento_horizontal), "yellow", "darkblue")
     y_txt = y_txt + delta_y
     
-    -- RIGHT
-    x_txt, y_txt = Buffer_width, 0
-	draw_text(x_txt, y_txt, fmt("Turbo %d/32767", turboReserves))
-    y_txt = y_txt + delta_y
-	draw_text(x_txt, y_txt, fmt("Slide: %5d", slideTimer))
-    y_txt = y_txt + delta_y
+    -- Down
 	draw_text(x_txt, y_txt, fmt("Abs Pos: %3d.%02x/%3d.%02x", absPos, absSubPos, maxAbsPos, maxAbsSubPos))
-    y_txt = y_txt + delta_y
-	draw_text(x_txt, y_txt, fmt("Jump: %5d", jumpTimer))
-    y_txt = y_txt + delta_y
-	draw_text(x_txt, y_txt, fmt("Land: %3d", landing))
     y_txt = y_txt + delta_y
     draw_text(x_txt, y_txt, fmt("Effec. Incl.(%d, %d) %d", effective_inclination1, effective_inclination2, speed_inclination))
     y_txt = y_txt + delta_y
-    --y_txt = y_txt + delta_y
-    --draw_text(x_txt, y_txt, fmt("Wumpa: %x: %d", address + 0x30, wumpa_count), "orange") -- test
-    --y_txt = y_txt + delta_y
-    --draw_text(x_txt, y_txt, fmt("Position: %d", number_position), "blue") -- test
     
-    -- Random shit
-    --[[
-    local estimated_speed = math.max(0, math.sqrt((absSpeed*256+absolute_subspeed)^2 - (256*vertSpeed+vertical_subspeed)^2) - 120)
-    draw_text(68, 65, estimated_speed)-- test
-    
-    gui.text(64, 32, timer, "black", "purple")
-    gui.text(64, 48, s32(address + 0x3a8))
-    gui.text(64, 64, fmt("%x: %d", address + 0x392, zspeed))
-    gui.text(64, 80, moving_direction)
-    gui.text(64, 96, "Ver. Dir. "..vertical_direction)
-    --]]
+    -- RIGHT
+    --other_game_mechanics(address)  -- edit
 end
 
 local function crash_team_racing()
 	local input_video_advance = u8(0x98800) ~= 0
-    local on_level = s8(ram["on_level"])
+    local on_level = s8(MainRAM["on_level"])
     
     if input_video_advance then
         gui.text(Buffer_width/2, 0, "INPUT", "black", "red")
@@ -364,6 +336,9 @@ local function crash_team_racing()
 	--end
 	return
 end
+
+
+-- Execute
 
 
 while true do
