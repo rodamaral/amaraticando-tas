@@ -1,7 +1,7 @@
 -- emulator: up-to-date lsnes
 -- game: Super Mario World
 -- this displays all possible blocks within the level
--- doesn't work well in transitions
+-- doesn't flip tiles yet
 
 local TILE_WIDTH, TILE_HEIGHT = 32, 64
 local BITMAP_WIDTH, BITMAP_HEIGHT = 8, 8
@@ -41,7 +41,7 @@ local function create_tile(tile)
 
   local palette = palette_db[color]
   local bitmap = tile_db[id]
-  
+
   --[[ ignore flipping for now
   local bitmap = copy_bitmap(tile_db[id])
   if xflip then bitmap:hflip() end
@@ -59,7 +59,7 @@ end
 local function create_map16_gfx()
   local ptr_region = memory.readregion("WRAM", 0x0fbe, 0x400)
   local x, y = 0, 0
-  
+
   for id = 0, 0x1ff do
     local pointer = ptr_region[2*id] + 256*ptr_region[2*id + 1]
 
@@ -73,7 +73,7 @@ local function create_map16_gfx()
     update_tilemap(x, y + 1, ll)
     update_tilemap(x + 1, y, ur)
     update_tilemap(x + 1, y + 1, lr)
-    
+
     -- update tilemap entry
     x = x + 2
     if x >= TILE_WIDTH then
@@ -113,18 +113,18 @@ end
 local function display_range(region, start, size, stride, palette)
   local x = - BITMAP_WIDTH*TILE_WIDTH
   local y = 0
-  
+
   for id = 0, math.floor(size/stride) - 1 do
     local bitmap = bsnes.dump_sprite(region, start + stride * id, 1, 1)
     bitmap:draw(x, y, palette)
-    
+
     x = x + 8
     if x >= 0 then
       x = - BITMAP_WIDTH*TILE_WIDTH
       y = y + 8
     end
   end
-  
+
   gui.solidrectangle(x, y, 8, 8, "red")
   gui.text(0, 0, math.floor(size/stride))
 end
@@ -132,6 +132,7 @@ end
 ---------------------------------
 ---------------------------------
 
+local map16_change_checker = memory.compare_new("WRAM", 0x0fbe, 0x400)
 
 for id = 0, 0x3ff do
   memory.registerwrite("VRAM", 0x20 * id, function()
@@ -146,7 +147,7 @@ for id = 0, 7 do
 end
 
 local function size(t) local c = 0; for a, b in pairs(t) do c = c + 1; end return c; end
-  
+
 function on_paint()
   local left_gap = BITMAP_WIDTH*TILE_WIDTH
   gui.bottom_gap(64)
@@ -155,34 +156,35 @@ function on_paint()
   if DEBUG_INFO then
     gui.text(0, 448, string.format("Tiles: %d ; Pals: %d", size(unset_tiles), size(unset_palettes)), 0xffffff, -1, 0x20)
   end
-  
+
+  if map16_change_checker() then
+    create_map16_gfx()
+  end
   update_palette_db()
   update_tile_db()
 
   gui.solidrectangle(-left_gap, 0, BITMAP_WIDTH*TILE_WIDTH, BITMAP_HEIGHT*32, 0x000020)
   gui.solidrectangle(-left_gap, BITMAP_HEIGHT*32, BITMAP_WIDTH*TILE_WIDTH, BITMAP_HEIGHT*32, 0x200000)
   tilemap:draw(-left_gap, 0)
-  
+
   if DEBUG_INFO then
     gui.text(0, 448 + 16, string.format("RAM: %.3f MiB", collectgarbage("count")/1024), "red", -1, 0x20)
   end
 end
 
+function on_video()
+  gui.set_video_scale(2, 2)
+  on_paint()
+end
 
 function on_post_load()
-  create_palette_db()
-  create_tile_db()
-  create_map16_gfx()
-  --[[
   for id = 0, 0x3ff do
     unset_tiles[id] = true
   end
   for id = 0, 7 do
     unset_palettes[id] = true
   end
-     --]]
-  
-  collectgarbage()
+
   gui.repaint()
 end
 
