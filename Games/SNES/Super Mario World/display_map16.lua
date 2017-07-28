@@ -1,11 +1,22 @@
+-- emulator: up-to-date lsnes
+-- game: Super Mario World
+-- this displays all possible blocks within the level
+-- doesn't work well in transitions
+
 local TILE_WIDTH, TILE_HEIGHT = 32, 64
 local BITMAP_WIDTH, BITMAP_HEIGHT = 8, 8
 
--- table of all possible palettes
+-- table of all palettes
 local palette_db = {}
+
+-- table of palettes that changed last frame, or that must be recalculated
+local unset_palettes = {}
 
 -- table of all 8x8 tiles
 local tile_db = {}
+
+-- table of all 8x8 tiles that changed last frame, or that must be recalculated
+local unset_tiles = {}
 
 -- tilemap displaying all types of tiles in the level stores in VRAM
 local tilemap = gui.tiled_bitmap.new(TILE_WIDTH, TILE_HEIGHT, BITMAP_WIDTH, BITMAP_HEIGHT)
@@ -44,13 +55,11 @@ local function update_tilemap(x, y, tile)
   tilemap:set(x, y, bitmap, palette)
 end
 
-local function get_map16_gfx()
+local function create_map16_gfx()
   local ptr_region = memory.readregion("WRAM", 0x0fbe, 0x400)
   local x, y = 0, 0
   
   for id = 0, 0x1ff do
-    tile_db[id] = bsnes.dump_sprite("VRAM", 0x20 * id, 1, 1)
-    
     local pointer = ptr_region[2*id] + 256*ptr_region[2*id + 1]
 
     local ul = vram_region[pointer - 0x8000 + 0] + 256*vram_region[pointer - 0x8000 + 1]
@@ -73,16 +82,29 @@ local function get_map16_gfx()
   end
 end
 
-local function get_all_palettes()
+local function create_palette_db()
   for id = 0, 7 do
-    palette_db[id] = palette_db[id] or bsnes.dump_palette("CGRAM", id*0x20, 16, true)
+    palette_db[id] = bsnes.dump_palette("CGRAM", id*0x20, 16, true)
   end
 end
 
-local function get_all_tiles()
-  for id = 0, 0x1ff, 1 do
-      --tile_db[id] = tile_db[id] or bsnes.dump_sprite("VRAM", 0x20 * id, 1, 1)
+local function update_palette_db()
+  for id in pairs(unset_palettes) do
+    bsnes.redump_palette(palette_db[id], "CGRAM", id*0x20, true)
+    unset_palettes[id] = nil
+  end
+end
+
+local function create_tile_db()
+  for id = 0, 0x3ff, 1 do
       tile_db[id] = bsnes.dump_sprite("VRAM", 0x20 * id, 1, 1)
+  end
+end
+
+local function update_tile_db()
+  for id in pairs(unset_tiles) do
+    bsnes.redump_sprite(tile_db[id], "VRAM", 0x20 * id)
+    unset_tiles[id] = nil
   end
 end
 
@@ -110,27 +132,28 @@ end
 ---------------------------------
 
 
-for id = 0, 0x1ff do
+for id = 0, 0x3ff do
   memory.registerwrite("VRAM", 0x20 * id, function()
-    tile_db[id] = false
+    unset_tiles[id] = true
   end)
 end
 
 for id = 0, 7 do
   memory.registerwrite("CGRAM", 0x20 * id, function()
-    palette_db[id] = false
+    unset_palettes[id] = true
   end)
 end
 
-
+local function size(t) local c = 0; for a, b in pairs(t) do c = c + 1; end return c; end
+  
 function on_paint()
   local left_gap = BITMAP_WIDTH*TILE_WIDTH
   gui.bottom_gap(64)
   gui.left_gap(left_gap)
 
-  get_all_palettes()
-  get_all_tiles()
-  get_map16_gfx()
+  gui.textHV(0, 0, string.format("TIles: %d ; Pals: %d", size(unset_tiles), size(unset_palettes)))
+  update_palette_db()
+  update_tile_db()
 
   gui.solidrectangle(-left_gap, 0, BITMAP_WIDTH*TILE_WIDTH, BITMAP_HEIGHT*32, 0x000020)
   gui.solidrectangle(-left_gap, BITMAP_HEIGHT*32, BITMAP_WIDTH*TILE_WIDTH, BITMAP_HEIGHT*32, 0x200000)
@@ -140,15 +163,23 @@ end
 
 
 function on_post_load()
-  for id = 0, 0x1ff do
-    tile_db[id] = false
+  create_palette_db()
+  create_tile_db()
+  create_map16_gfx()
+  --[[
+  for id = 0, 0x3ff do
+    unset_tiles[id] = true
   end
   for id = 0, 7 do
-    palette_db[id] = false
+    unset_palettes[id] = true
   end
+     --]]
   
   collectgarbage()
   gui.repaint()
 end
 
+create_palette_db()
+create_tile_db()
+create_map16_gfx()
 gui.repaint()
