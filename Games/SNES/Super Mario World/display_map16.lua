@@ -5,6 +5,7 @@
 
 local TILE_WIDTH, TILE_HEIGHT = 32, 64
 local BITMAP_WIDTH, BITMAP_HEIGHT = 8, 8
+local DEBUG_INFO = false
 
 -- table of all palettes
 local palette_db = {}
@@ -151,14 +152,20 @@ function on_paint()
   gui.bottom_gap(64)
   gui.left_gap(left_gap)
 
-  gui.textHV(0, 0, string.format("TIles: %d ; Pals: %d", size(unset_tiles), size(unset_palettes)))
+  if DEBUG_INFO then
+    gui.text(0, 448, string.format("Tiles: %d ; Pals: %d", size(unset_tiles), size(unset_palettes)), 0xffffff, -1, 0x20)
+  end
+  
   update_palette_db()
   update_tile_db()
 
   gui.solidrectangle(-left_gap, 0, BITMAP_WIDTH*TILE_WIDTH, BITMAP_HEIGHT*32, 0x000020)
   gui.solidrectangle(-left_gap, BITMAP_HEIGHT*32, BITMAP_WIDTH*TILE_WIDTH, BITMAP_HEIGHT*32, 0x200000)
   tilemap:draw(-left_gap, 0)
-  gui.text(0, 448, string.format("RAM: %.3f MiB", collectgarbage("count")/1024), "red", -1, 0x20)
+  
+  if DEBUG_INFO then
+    gui.text(0, 448 + 16, string.format("RAM: %.3f MiB", collectgarbage("count")/1024), "red", -1, 0x20)
+  end
 end
 
 
