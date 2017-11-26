@@ -220,6 +220,7 @@ function on_paint()
   gui.left_gap(left_gap)
   gui.right_gap(right_gap)
 
+  gui.text(0, 0, "Cam: " .. xcam .. ", " .. ycam, "yellow", -1, 0)
   if DEBUG_INFO then
     gui.text(0, 448, string.format("Tiles: %d ; Pals: %d", size(unset_tiles), size(unset_palettes)), 0xffffff, -1, 0x20)
   end
@@ -234,23 +235,21 @@ function on_paint()
   if block_change_checker() then
     mount_level_tilemap()
   end
-  local xcam = memory.readsword("WRAM", 0x001A)
-  local ycam = memory.readsword("WRAM", 0x001C)
-  level_map:draw_outside(-2*xcam, -2 - 2*ycam)
+  --local xcam = memory.readsword("WRAM", 0x001A)
+  --local ycam = memory.readsword("WRAM", 0x001C)
+  level_map:draw_outside(-2*xcam, -2*(ycam + 1))
 
   if DEBUG_INFO then
     gui.text(0, 448 + 16, string.format("RAM: %.3f MiB", collectgarbage("count")/1024), "red", -1, 0x20)
   end
+
+  xcam = memory.readsword("WRAM", 0x001A)
+  ycam = memory.readsword("WRAM", 0x001C)
 end
 
 function on_video()
   gui.set_video_scale(2, 2)
   on_paint()
-end
-
-function on_frame()
-  xcam = memory.readsword("WRAM", 0x001A)
-  ycam = memory.readsword("WRAM", 0x001C)
 end
 
 function on_post_load()

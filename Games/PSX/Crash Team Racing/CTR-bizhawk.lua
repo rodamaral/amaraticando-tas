@@ -10,6 +10,9 @@
 -- NTSC-U only for now :(
 -- Better display using the PSX > Options > Mednafen Mode (4:3 AR)
 
+-- BizHawk version
+local NEW_BIZHAWK_VERSION = (emu.setislagged ~= nil) and true or false  -- 1.11.5
+
 -- Function's alias
 local u8 = mainmemory.read_u8
 local s8  = mainmemory.read_s8
@@ -54,11 +57,12 @@ local racer_name = {
 local Prev = {}
 local Joypad = {}
 
-local Movie_active, Readonly, Framecount, Lagcount, Rerecords, Game_region
+local Movie_active, Movie_mode, Readonly, Framecount, Lagcount, Rerecords, Game_region
 local Lastframe_emulated, Starting_subframe_last_frame, Size_last_frame, Final_subframe_last_frame
 local Nextframe, Starting_subframe_next_frame, Starting_subframe_next_frame, Final_subframe_next_frame
 local function bizhawk_status()
-    Movie_active = movie.isloaded()  -- BizHawk
+    Movie_active = movie.isloaded()
+	Movie_mode = movie.mode()
     Readonly = movie.getreadonly()  -- BizHawk
     Framecount = movie.length()  -- BizHawk
     Lagcount = emu.lagcount()  -- BizHawk
@@ -96,15 +100,17 @@ end
 
 
 local function get_joypad()
-    if Movie_active then
+    if Movie_mode == "PLAY" or Movie_mode == "RECORD" then
         if Readonly then   -- get joypad
-            Joypad = emu.framecount() < movie.length() and movie.getinput(emu.framecount()) or joypad.get(1)
+            Joypad = movie.getinput(emu.framecount())
         else
-            Joypad = movie.getinput(emu.framecount() - 1)
+            Joypad = joypad.get() --movie.getinput(emu.framecount() - 1)
         end
     else
-        Joypad = {}
+        Joypad = joypad.get() --{}
     end
+    
+    --print(Joypad)
 end
 
 
@@ -113,7 +119,7 @@ local function draw_text(x, y, text, text_color, outline_color)
     local game_screen_x = Border_left
     local game_screen_y = Border_top
     
-    gui.text(x + game_screen_x, y + game_screen_y, text, outline_color, text_color)
+    gui.text(x + game_screen_x, y + game_screen_y, text, text_color, outline_color)
 end
 
 
@@ -125,12 +131,12 @@ local function alert_text(x_pos, y_pos, text, text_color, bg_color)
     
     --gui.drawBox(x_pos/AR_x, y_pos/AR_y, (x_pos + text_length)/AR_x + 2, (y_pos + font_height)/AR_y + 1, 0, bg_color)
     
-    gui.text(x_pos + Border_left - 2, y_pos + Border_top - 2, text, bg_color, bg_color)
-    gui.text(x_pos + Border_left + 0, y_pos + Border_top - 2, text, bg_color, bg_color)
-    gui.text(x_pos + Border_left - 2, y_pos + Border_top + 0, text, bg_color, bg_color)
-    --gui.text(x_pos + Border_left + 1, y_pos + Border_top + 1, text, bg_color, bg_color)
+    gui.text(x_pos + Border_left - 2, y_pos + Border_top - 2, text, bg_color)
+    gui.text(x_pos + Border_left + 0, y_pos + Border_top - 2, text, bg_color)
+    gui.text(x_pos + Border_left - 2, y_pos + Border_top + 0, text, bg_color)
+    --gui.text(x_pos + Border_left + 1, y_pos + Border_top + 1, text, bg_color)
     
-    gui.text(x_pos + Border_left, y_pos + Border_top, text, bg_color, text_color)
+    gui.text(x_pos + Border_left, y_pos + Border_top, text, text_color, bg_color)
 end
 
 
@@ -171,29 +177,29 @@ end
 
 
 local function show_joypad()
-    if not Movie_active then return end
-    
+    --if not Movie_active then return end
+    --print"HERE"
     local x_text, y_text = 10, Buffer_height - 40
     local current_input = ""
-    gui.text(x_text, y_text, "^v<>s$STOXlLrR", 0, 0x20ffffff)  -- base
-    joypad.set({Cross = true}, 1)
+    gui.text(x_text, y_text, "^v<>s$STOXlLrR", 0x20ffffff)  -- base
+    --joypad.set({Cross = true}, 1)
     
-    if Joypad["P1 Up"] then current_input = current_input .. "^" end
-    if Joypad["P1 Down"] then current_input = current_input .. "v" end
-    if Joypad["P1 Left"] then current_input = current_input .. "<" end
-    if Joypad["P1 Right"] then current_input = current_input .. ">" end
-    if Joypad["P1 Select"] then current_input = current_input .. "s" end
-    if Joypad["P1 Start"] then current_input = current_input .. "$" end
-    if Joypad["P1 Square"] then current_input = current_input .. "S" end
-    if Joypad["P1 Triangle"] then current_input = current_input .. "T" end
-    if Joypad["P1 Circle"] then current_input = current_input .. "O" end
-    if Joypad["P1 Cross"] then current_input = current_input .. "X" end
-    if Joypad["P1 L1"] then current_input = current_input .. "l" end
-    if Joypad["P1 L2"] then current_input = current_input .. "L" end
-    if Joypad["P1 R1"] then current_input = current_input .. "r" end
-    if Joypad["P1 R2"] then current_input = current_input .. "R" end
+    if Joypad["P1 Up"] then current_input = current_input .. "^" else current_input = current_input .. " " end
+    if Joypad["P1 Down"] then current_input = current_input .. "v" else current_input = current_input .. " " end
+    if Joypad["P1 Left"] then current_input = current_input .. "<" else current_input = current_input .. " " end
+    if Joypad["P1 Right"] then current_input = current_input .. ">" else current_input = current_input .. " " end
+    if Joypad["P1 Select"] then current_input = current_input .. "s" else current_input = current_input .. " " end
+    if Joypad["P1 Start"] then current_input = current_input .. "$" else current_input = current_input .. " " end
+    if Joypad["P1 Square"] then current_input = current_input .. "S" else current_input = current_input .. " " end
+    if Joypad["P1 Triangle"] then current_input = current_input .. "T" else current_input = current_input .. " " end
+    if Joypad["P1 Circle"] then current_input = current_input .. "O" else current_input = current_input .. " " end
+    if Joypad["P1 Cross"] then current_input = current_input .. "X" else current_input = current_input .. " " end
+    if Joypad["P1 L1"] then current_input = current_input .. "l" else current_input = current_input .. " " end
+    if Joypad["P1 L2"] then current_input = current_input .. "L" else current_input = current_input .. " " end
+    if Joypad["P1 R1"] then current_input = current_input .. "r" else current_input = current_input .. " " end
+    if Joypad["P1 R2"] then current_input = current_input .. "R" else current_input = current_input .. " " end
     
-    gui.text(x_text, y_text, current_input, 0, 0xff0000)
+    gui.text(x_text, y_text, current_input, 0xffff0000)
 end
 
 
@@ -226,12 +232,18 @@ local function other_game_mechanics(address)
     local estimated_speed = math.max(0, math.sqrt((absSpeed*256+absolute_subspeed)^2 - (256*vertSpeed+vertical_subspeed)^2) - 120)
     draw_text(68, 65, estimated_speed)-- test
     
-    gui.text(64, 32, timer, "black", "purple")
+    gui.text(64, 32, timer, "purple")
     gui.text(64, 48, s32(address + 0x3a8))
     gui.text(64, 64, fmt("%x: %d", address + 0x392, zspeed))
     gui.text(64, 80, moving_direction)
     gui.text(64, 96, "Ver. Dir. "..vertical_direction)
     --]]
+end
+
+-- unsigned to signed (based in <bits> bits)
+local function signed(num, bits) -- EDIT
+    local maxval = 2^(bits - 1)
+    if num < maxval then return num else return num - 2*maxval end
 end
 
 local function level_mode_info()
@@ -251,10 +263,10 @@ local function level_mode_info()
     local address = offset - 0x80000000
     
     if address >= 0x200000 - 0x600 or address < 0 then  -- 0x600 is semi-arbitrary here
-        gui.text(100, 100, "OFFSET OUT OF BOUNDS", 0, 0xff0000)
+        gui.text(100, 100, "OFFSET OUT OF BOUNDS", 0xffff0000)
         return
     end
-    gui.text(0, 0, fmt("$%.6x ", address), "black", "cyan", "bottomright")
+    gui.text(0, 0, fmt("$%.6x ", address), "cyan", "black", "bottomright")
     gui.text(0, 20, "-", nil, nil, "bottomright")
     
     -- Read RAM
@@ -273,6 +285,17 @@ local function level_mode_info()
     -- Positions  (from 0xed4 to 0xedf)
     local x = s32(address + 0x2d4)
     local x_speed = s32(address + 0x88)
+    -- TEST (FROM DISASSEMBLY)
+    local r2 = s32(0x098824)
+    local r8 = math.fmod(r2*x_speed, 256^4)
+    r2 = bit.arshift(r8, 5)
+    r8 = math.fmod(r2*0x1000, 256^4)
+    r2 = bit.arshift(r8, 0xc)
+    local r3 = 0x1000--memory.read_s32_le(0x0108 + 0x84, "DCache")  -- 0x1f800108
+    r8 = math.fmod(r2*r3, 256^4)
+    r3 = bit.arshift(r8, 0x0c)
+    x_speed = r3
+    
     local z = s32(address + 0x2d8) --
     local z_speed = s32(address + 0x8c)
     local y = s32(address + 0x2dc) --
@@ -303,7 +326,7 @@ local function level_mode_info()
     
     -- Positions
     x_txt, y_txt = - Border_left, 64
-    draw_text(x_txt, y_txt, fmt("X = %d (%d)", x, x- x2))
+    draw_text(x_txt, y_txt, fmt("X = %d (%d) %d", x, x- x2, x_speed)) -- test
     y_txt = y_txt + delta_y
     draw_text(x_txt, y_txt, fmt("Y = %d (%d)", y, y - y2))
     y_txt = y_txt + delta_y
@@ -327,11 +350,11 @@ local function crash_team_racing()
     local on_level = s8(MainRAM["on_level"])
     
     if input_video_advance then
-        gui.text(Buffer_width/2, 0, "INPUT", "black", "red")
+        gui.text(Buffer_width/2, 0, "INPUT", "red", "black")
     end
     
     --if on_level==2 then
-        gui.text(0, 0, "Game Mode: " .. on_level, "black", "white", "topright")
+        gui.text(0, 0, "Game Mode: " .. on_level, "white", "black", "topright")
 		level_mode_info()
 	--end
 	return
@@ -340,6 +363,10 @@ end
 
 -- Execute
 
+if NEW_BIZHAWK_VERSION then
+    client.SetClientExtraPadding(300, 20, 60, 20)
+    client.SetGameExtraPadding(0, 0, 0, 0)
+end
 
 while true do
     -- Get emulator status and settings
@@ -348,6 +375,9 @@ while true do
     get_joypad()
     if emu.islagged() then  -- BizHawk: outside show_movie_info
         gui.drawText(200, 20, " LAG ", 0xffff0000, 20)
+    end
+    if NEW_BIZHAWK_VERSION and u8(0x98800) == 0 then
+        --emu.setislagged(true)
     end
     
     -- Display relevant emu info
