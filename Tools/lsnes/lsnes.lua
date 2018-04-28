@@ -885,7 +885,7 @@ function LSNES.display_input()
     local x_grid, y_grid = - grid_width, 0
     local grid_subframe_slots = math.floor(grid_height/height) - 1  -- discount the header
     grid_height = (grid_subframe_slots + 1)*height  -- if grid_height is not a multiple of height, cut it
-    local past_inputs_number = math.floor(grid_subframe_slots - 1)/2  -- discount the present
+    local past_inputs_number = math.floor((grid_subframe_slots - 1)/2)  -- discount the present
     local future_inputs_number = grid_subframe_slots - past_inputs_number  -- current frame is included here
     local y_present = y_grid + (past_inputs_number + 1)*height  -- add header
     local x_text, y_text = x_grid, y_present - height
