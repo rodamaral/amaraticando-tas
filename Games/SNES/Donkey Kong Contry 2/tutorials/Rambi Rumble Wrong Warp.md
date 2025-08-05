@@ -1,5 +1,8 @@
 # Rambi Rumble Wrong Warp
 
+[YouTube Video](https://www.youtube.com/watch?v=41yX7x2rnG4)
+
+
 ## First descent
 
 - there're only 3 possible positions for this trick
